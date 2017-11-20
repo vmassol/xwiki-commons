@@ -26,4 +26,5 @@
 
 xwikiModule {
   xvnc = false
+  goals = 'clean install'
 }
