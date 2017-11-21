@@ -35,7 +35,7 @@ xwikiModule {
                     goals = "clean"
                 }
             }
-        },
+        }/*,
         "test": {
             node {
                 xwikiBuild {
@@ -43,6 +43,6 @@ xwikiModule {
                     goals = "clean"
                 }
             }
-        }
+        }*/
     )
 }
