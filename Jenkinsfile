@@ -25,6 +25,8 @@
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
 xwikiModule {
+goals = "clean"
+/*
     parallel(
         "standard": {
             node {
@@ -43,4 +45,5 @@ xwikiModule {
             }
         }
     )
+*/
 }
