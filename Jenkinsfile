@@ -28,12 +28,12 @@ xwikiModule {
     parallel(
         "standard": {
             node {
-                build(["xvnc": false, "goals": "clean"])
+                this.build(["xvnc": false, "goals": "clean"])
             }
         },
         "test": {
             node {
-                build(["xvnc": false, "goals": "clean"])
+                this.build(["xvnc": false, "goals": "clean"])
             }
         }
     )
