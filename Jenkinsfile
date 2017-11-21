@@ -25,6 +25,16 @@
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
 xwikiModule {
-  xvnc = false
-  goals = 'clean install'
+    parallel(
+        "standard": {
+            node {
+                build(["xvnc": false, "goals": "clean"])
+            }
+        },
+        "test": {
+            node {
+                build(["xvnc": false, "goals": "clean"])
+            }
+        }
+    )
 }
