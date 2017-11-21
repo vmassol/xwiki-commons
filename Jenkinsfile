@@ -31,6 +31,7 @@ xwikiModule {
                 xwikiBuild {
                     xvnc = false
                     goals = "clean"
+                }
             }
         },
         "test": {
