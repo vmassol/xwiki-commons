@@ -24,9 +24,7 @@
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
-xwikiModule {
-//xvnc = false
-//goals = "clean"
+// Example 1:
     parallel(
         "standard": {
             node {
@@ -35,7 +33,7 @@ xwikiModule {
                     goals = "clean"
                 }
             }
-        }/*,
+        },
         "test": {
             node {
                 xwikiBuild {
@@ -43,6 +41,20 @@ xwikiModule {
                     goals = "clean"
                 }
             }
-        }*/
+        }
     )
+/*
+// Example 2:
+node {
+  xwikiBuild {
+    xvnc = false
+    goals = "clean"
+  }
 }
+
+// Example 3 (backward compat)
+xwikiModule {
+  xvnc = false
+  goals = "clean"
+}
+*/
