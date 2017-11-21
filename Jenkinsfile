@@ -47,17 +47,17 @@
 */
 
 // Example 2:
+/*
 node {
   xwikiBuild {
     xvnc = false
     goals = "clean"
   }
 }
+*/
 
 // Example 3 (backward compat)
-/*
 xwikiModule {
   xvnc = false
   goals = "clean"
 }
-*/
