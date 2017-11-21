@@ -25,6 +25,7 @@
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
 // Example 1:
+/*
     parallel(
         "standard": {
             node {
@@ -43,7 +44,8 @@
             }
         }
     )
-/*
+*/
+
 // Example 2:
 node {
   xwikiBuild {
@@ -53,6 +55,7 @@ node {
 }
 
 // Example 3 (backward compat)
+/*
 xwikiModule {
   xvnc = false
   goals = "clean"
