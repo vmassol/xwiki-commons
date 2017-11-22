@@ -27,7 +27,8 @@
 node {
   xwikiBuild {
     xvnc = false
-    goals = "invalid"
+    goals = "clean test"
+    pom = "xwiki-commons-core/xwiki-commons-blame/xwiki-commons-blame-api/pom.xml"
   }
 }
 
