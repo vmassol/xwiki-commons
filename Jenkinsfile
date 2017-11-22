@@ -30,16 +30,13 @@ node {
     goals = "clean test"
     pom = "xwiki-commons-core/xwiki-commons-blame/xwiki-commons-blame-api/pom.xml"
   }
-  echo "Node result: ${currentBuild.result}"
 }
 
-echo "Result 1: ${currentBuild.result}"
-
+if (currentBuild.result != 'FAILURE') {
 node {
   xwikiBuild {
     xvnc = false
     goals = "clean"
   }
 }
-
-echo "Result 2: ${currentBuild.result}"
+}
