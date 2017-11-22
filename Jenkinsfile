@@ -32,8 +32,7 @@ node {
   }
 }
 
-echo "RESULT: ${currentBuild.result}"
-if (currentBuild.result != 'FAILURE') {
+if (currentBuild.result != 'UNSTABLE') {
 node {
   xwikiBuild {
     xvnc = false
