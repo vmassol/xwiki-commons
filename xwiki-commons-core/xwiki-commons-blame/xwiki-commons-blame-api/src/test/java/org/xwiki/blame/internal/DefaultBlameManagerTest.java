@@ -132,7 +132,7 @@ public class DefaultBlameManagerTest
         assertThat(annotatedElement.getElement(), is("The quick red fox"));
         assertThat(annotatedElement.getRevision(), same(rev2));
 
-        assertThat(iter.hasNext(), is(true));
+        assertThat(iter.hasNext(), is(false));
         annotatedElement = iter.next();
         assertThat(annotatedElement.getElement(), is("jumps over"));
         assertThat(annotatedElement.getRevision(), same(rev3));
