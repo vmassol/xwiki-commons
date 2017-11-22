@@ -32,6 +32,7 @@ node {
   }
 }
 
+echo "RESULT: ${currentBuild.result}"
 if (currentBuild.result != 'FAILURE') {
 node {
   xwikiBuild {
