@@ -26,7 +26,7 @@
 
 stage('Commons Builds') {
 
-lock() {
+lock('xwiki-commons') {
 
 node {
   xwikiBuild {
