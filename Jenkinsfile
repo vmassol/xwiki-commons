@@ -35,7 +35,7 @@ node {
 }
 
 node {
-  stage('Build 2') {
+  stage('Build 2')
   xwikiBuild {
     xvnc = false
     goals = "clean"
