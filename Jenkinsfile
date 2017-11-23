@@ -24,23 +24,20 @@
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
-stage('Build 1') {
 
 node {
+  stage('Build 1')
   xwikiBuild {
     xvnc = false
     goals = "clean test"
     pom = "xwiki-commons-core/xwiki-commons-blame/xwiki-commons-blame-api/pom.xml"
   }
 }
-}
-
-stage('Build 2') {
 
 node {
+  stage('Build 2') {
   xwikiBuild {
     xvnc = false
     goals = "clean"
   }
-}
 }
