@@ -29,7 +29,6 @@ stage('Commons Builds') {
 lock() {
 
 node {
-  stage('Build 1')
   xwikiBuild {
     xvnc = false
     goals = "clean"
@@ -38,7 +37,6 @@ node {
 }
 
 node {
-  stage('Build 2')
   xwikiBuild {
     xvnc = false
     goals = "clean"
