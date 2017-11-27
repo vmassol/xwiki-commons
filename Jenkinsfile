@@ -26,7 +26,7 @@
 
 stage('Commons Builds') {
 
-build(goals: 'clean')
+build()
 
 }
 
@@ -36,18 +36,7 @@ def build(goals, profiles, properties, pom)
   node {
     xwikiBuild {
       mavenOpts = '-Xmx2500m -Xms512m -XX:ThreadStackSize=2048'
-/*
-      goals = pGoals
-      if (profiles) {
-        profiles = profiles
-      }
-      if (properties) {
-        properties = properties
-      }
-      if (pom) {
-        pom = pom
-      }
-*/
+      goals = 'clean'
     }
   }
 }
