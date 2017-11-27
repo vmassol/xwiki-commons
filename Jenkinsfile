@@ -24,6 +24,12 @@
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
+stage ('Platform Builds') {
+
+
+build(goals: 'clean')
+
+}
 
 def build(map)
 {
@@ -40,7 +46,3 @@ profiles = map.profiles
     }
   }
 }
-
-build(goals: 'clean')
-
-
