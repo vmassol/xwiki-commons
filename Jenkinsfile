@@ -26,24 +26,30 @@
 
 stage('Commons Builds') {
 
-lock('xwiki-commons') {
+build(goals: 'clean')
 
-node {
-  xwikiBuild {
-    xvnc = false
-    goals = "clean"
-    pom = "xwiki-commons-core/xwiki-commons-blame/xwiki-commons-blame-api/pom.xml"
+}
+
+
+def build(goals, profiles, properties, pom)
+{
+  node {
+    xwikiBuild {
+      mavenOpts = '-Xmx2500m -Xms512m -XX:ThreadStackSize=2048'
+/*
+      goals = pGoals
+      if (profiles) {
+        profiles = profiles
+      }
+      if (properties) {
+        properties = properties
+      }
+      if (pom) {
+        pom = pom
+      }
+*/
+    }
   }
 }
 
-node {
-  xwikiBuild {
-    xvnc = false
-    goals = "clean"
-  }
-}
-
-}
-
-}
 
