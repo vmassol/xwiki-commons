@@ -25,16 +25,22 @@
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
 
-def build(goals, profiles, properties, pom)
+def build(map)
 {
   node {
     xwikiBuild {
       mavenOpts = '-Xmx2500m -Xms512m -XX:ThreadStackSize=2048'
-      goals = 'clean'
+      if (map.goals) {
+      goals =  map.goals
+}
+if (map.profiles) {
+profiles = map.profiles
+}
+      
     }
   }
 }
 
-build()
+build(goals: 'clean')
 
 
