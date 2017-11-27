@@ -24,13 +24,6 @@
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
-stage('Commons Builds') {
-
-build()
-
-}
-
-
 def build(goals, profiles, properties, pom)
 {
   node {
@@ -41,4 +34,9 @@ def build(goals, profiles, properties, pom)
   }
 }
 
+stage('Commons Builds') {
+
+build()
+
+}
 
