@@ -26,9 +26,9 @@
 
 stage ('Platform Builds') {
 
-
+try {
 build(goals: 'clean')
-
+} catch (Exception e) {
     emailext (
         subject: "${env.PROJECT_NAME} - Build # ${env.BUILD_NUMBER} - XXX",
         body: '''
@@ -53,7 +53,7 @@ ${BUILD_LOG_REGEX, regex = ".*Finished at:.*", linesBefore = 100, linesAfter = 1
             [$class: 'RequesterRecipientProvider']
         ]
     )
-
+}
 
 }
 
