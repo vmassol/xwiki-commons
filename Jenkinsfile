@@ -29,6 +29,32 @@ stage ('Platform Builds') {
 
 build(goals: 'clean')
 
+    emailext (
+        subject: "${env.PROJECT_NAME} - Build # ${env.BUILD_NUMBER} - XXX",
+        body: '''
+Check console output at $BUILD_URL to view the results.
+
+Changes since the previous successful build:
+
+${CHANGES_SINCE_LAST_SUCCESS, changesFormat = "[%a] %d %m (rev %r)\\n"}
+
+Failed tests:
+
+${FAILED_TESTS}
+
+Last build logs:
+
+${BUILD_LOG_REGEX, regex = ".*Finished at:.*", linesBefore = 100, linesAfter = 100}
+''',
+        mimeType: 'text/plain',
+        recipientProviders: [
+            [$class: 'CulpritsRecipientProvider'],
+            [$class: 'DevelopersRecipientProvider'],
+            [$class: 'RequesterRecipientProvider']
+        ]
+    )
+
+
 }
 
 def build(map)
