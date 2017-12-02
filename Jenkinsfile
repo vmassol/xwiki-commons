@@ -23,6 +23,7 @@
 // Note that the version used is the one defined in Jenkins but it can be overridden as follows:
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
+// AA
 
 node {
   xwikiBuild {
