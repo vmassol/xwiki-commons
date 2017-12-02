@@ -24,51 +24,9 @@
 // @Library("XWiki@<branch, tag, sha1>") _
 // See https://github.com/jenkinsci/workflow-cps-global-lib-plugin for details.
 
-stage ('Platform Builds') {
-
-try {
-build(goals: 'clean')
-} catch (Exception e) {
-    emailext (
-        subject: "${env.PROJECT_NAME} - Build # ${env.BUILD_NUMBER} - XXX",
-        body: '''
-Check console output at $BUILD_URL to view the results.
-
-Changes since the previous successful build:
-
-${CHANGES_SINCE_LAST_SUCCESS, changesFormat = "[%a] %d %m (rev %r)\\n"}
-
-Failed tests:
-
-${FAILED_TESTS}
-
-Last build logs:
-
-${BUILD_LOG_REGEX, regex = ".*Finished at:.*", linesBefore = 100, linesAfter = 100}
-''',
-        mimeType: 'text/plain',
-        recipientProviders: [
-            [$class: 'CulpritsRecipientProvider'],
-            [$class: 'DevelopersRecipientProvider'],
-            [$class: 'RequesterRecipientProvider']
-        ]
-    )
-}
-
-}
-
-def build(map)
-{
-  node {
-    xwikiBuild {
-      mavenOpts = '-Xmx2500m -Xms512m -XX:ThreadStackSize=2048'
-      if (map.goals) {
-      goals =  map.goals
-}
-if (map.profiles) {
-profiles = map.profiles
-}
-      
-    }
+node {
+  xwikiBuild {
+    goals = "clean"
+    xvnc = false
   }
 }
