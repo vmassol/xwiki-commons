@@ -31,4 +31,6 @@ node {
     xvnc = false
     properties = "-N"
   }
+
+build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
 }
