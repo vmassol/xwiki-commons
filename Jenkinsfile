@@ -32,5 +32,7 @@ node {
     properties = "-N"
   }
 
-build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
+if (currentBuild.result == 'SUCCESS') {
+  build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
+}
 }
