@@ -84,19 +84,6 @@ import com.cloudbees.groovy.cps.NonCPS
 //   - Groovy Post Build plugin (provides the 'manager' variable)
 
 
-node {
-  def currentBuild = call {
-    goals = "clean package"
-    xvnc = false
-    properties = "-N"
-  }
-
-echo "Result = ${currentBuild.result}"
-if (currentBuild.result == 'SUCCESS') {
-  build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
-}
-}
-
 
 
 /**
@@ -642,4 +629,19 @@ def getKnownFlickeringTests()
 
     return knownFlickers
 }
+
+
+node {
+  def currentBuild = call {
+    goals = "clean package"
+    xvnc = false
+    properties = "-N"
+  }
+
+  echo "Result = ${currentBuild.result}"
+  if (currentBuild.result == 'SUCCESS') {
+    build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
+  }    
+}
+
 
