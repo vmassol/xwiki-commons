@@ -98,7 +98,7 @@ public class DefaultBlameManagerTest
                 "The quick red fox",
                 "jumps over the lazy dog"));
 
-        assertThat(annotatedContent.isEntirelyAnnotated(), is(false));
+        assertThat(annotatedContent.isEntirelyAnnotated(), is(true));
         assertThat(annotatedContent.getOldestRevision(), same(rev2));
 
         annotatedContent = blameManager.blame(annotatedContent,
