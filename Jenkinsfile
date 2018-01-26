@@ -1,6 +1,6 @@
 
 node {
-  def currentBuild = xwikiBuild {
+   xwikiBuild {
     goals = "clean package"
     xvnc = false
     properties = "-N"
