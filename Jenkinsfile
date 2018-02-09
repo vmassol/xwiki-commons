@@ -1,15 +1,10 @@
 
 node {
-   xwikiBuild {
+   testBuild2 {
     goals = "clean package"
     xvnc = false
-    properties = "-N"
+    pom = xwiki-commons-core/xwiki-commons-velocity/pom.xml
   }
-
-  echo "Result = ${currentBuild.result}"
-  if (currentBuild.result == 'SUCCESS') {
-    build job: "../xwiki-rendering/${env.BRANCH_NAME}", wait: false
-  }    
 }
 
 
