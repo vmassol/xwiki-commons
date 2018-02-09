@@ -73,7 +73,7 @@ public class DefaultVelocityConfigurationTest
             this.mocker.getComponentUnderTest().getProperties().getProperty("runtime.introspector.uberspect"));
 
         // Verify that null values are allowed by default
-        assertEquals(Boolean.FALSE.toString(),
+        assertEquals(Boolean.TRUE.toString(),
             this.mocker.getComponentUnderTest().getProperties().getProperty("directive.set.null.allowed"));
 
         // Verify that Macros are isolated by default
