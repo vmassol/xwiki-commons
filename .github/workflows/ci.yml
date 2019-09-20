@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        java: [ '1.8', '11.x', '12.x', '13.x' ]
+        java: [ '1.8', '11.x', '12.x' ]
     steps:
       - uses: actions/checkout@v1
       - uses: actions/setup-java@v1
