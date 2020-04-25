@@ -11,5 +11,5 @@ jobs:
         uses: actions/checkout@master
       - name: Build with Maven
         run: |
-          which mvn
+          /bin/bash which mvn
 
