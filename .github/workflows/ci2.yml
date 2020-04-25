@@ -11,5 +11,12 @@ jobs:
         uses: actions/checkout@master
       - name: Build with Maven
         run: |
-          /home/hudsonagent/maven/bin/mvn --version
+          export MAVEN_OPTS="-Xmx2048m -Xms512m"
+          /home/hudsonagent/maven/bin/mvn --no-transfer-progress install -Plegacy,integration-tests,docker,snapshot
+      - name: Publish Test Results
+        uses: check-run-reporter/action@master
+        env:
+          CHECK_RUN_REPORTER_LABEL: 'Unit Tests for Commons'
+          CHECK_RUN_REPORTER_REPORT: '**/target/surefire-reports/**/*.xml'
+          CHECK_RUN_REPORTER_TOKEN: ${{ secrets.CHECK_RUN_REPORTER_TOKEN }}
 
