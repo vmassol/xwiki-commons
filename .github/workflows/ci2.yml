@@ -13,7 +13,7 @@ jobs:
         uses: undefinedlabs/scope-for-maven-action@v1
         with:
           dsn: ${{secrets.SCOPE_DSN}}
-          command: /home/hudsonagent/maven/bin/mvn --no-transfer-progress install -Dmaven.test.failure.ignore -Plegacy,integration-tests,docker,snapshot 
+          command: /home/hudsonagent/maven/bin/mvn --no-transfer-progress install -Dmaven.test.failure.ignore -Dxwiki.license.skip=true -Plegacy,integration-tests,docker,snapshot 
 #      - name: Build with Maven
 #        run: |
 #          export MAVEN_OPTS="-Xmx2048m -Xms512m"
