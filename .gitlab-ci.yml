@@ -20,7 +20,7 @@ build:
   stage: build
   script:
     - echo $SHELL
-    - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -Plegacy,snapshot
+    - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
 test:
   stage: test
