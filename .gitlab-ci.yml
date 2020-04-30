@@ -19,6 +19,7 @@ cache:
 build:
   stage: build
   script:
+    - echo $SHELL
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS compile -Plegacy,snapshot
 
 test:
