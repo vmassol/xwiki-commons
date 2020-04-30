@@ -24,27 +24,30 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Properties;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.velocity.VelocityContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.xwiki.component.util.DefaultParameterizedType;
+import org.xwiki.context.Execution;
+import org.xwiki.context.ExecutionContext;
+import org.xwiki.logging.LoggerConfiguration;
 import org.xwiki.properties.ConverterManager;
 import org.xwiki.test.annotation.BeforeComponent;
 import org.xwiki.test.annotation.ComponentList;
-import org.xwiki.test.mockito.MockitoComponentManagerRule;
+import org.xwiki.test.junit5.mockito.ComponentTest;
+import org.xwiki.test.junit5.mockito.InjectComponentManager;
+import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.test.mockito.MockitoComponentManager;
 import org.xwiki.velocity.VelocityEngine;
-import org.xwiki.velocity.XWikiVelocityException;
 import org.xwiki.velocity.internal.DefaultVelocityConfiguration;
 import org.xwiki.velocity.internal.DefaultVelocityContextFactory;
 import org.xwiki.velocity.internal.DefaultVelocityEngine;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 /**
@@ -53,13 +56,22 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  * @since 6.4M3
  */
-@ComponentList({ DefaultVelocityEngine.class, DefaultVelocityConfiguration.class, DefaultVelocityContextFactory.class })
+@ComponentTest
+@ComponentList({
+    DefaultVelocityEngine.class,
+    DefaultVelocityConfiguration.class,
+    DefaultVelocityContextFactory.class
+})
 public class MethodArgumentUberspectorTest
 {
-    @Rule
-    public MockitoComponentManagerRule componentManager = new MockitoComponentManagerRule();
+    @InjectComponentManager
+    MockitoComponentManager componentManager;
 
+    @MockComponent
     private ConverterManager converterManager;
+
+    @MockComponent
+    private LoggerConfiguration loggerConfiguration;
 
     private StringWriter writer;
 
@@ -71,7 +83,10 @@ public class MethodArgumentUberspectorTest
     public void setUpComponents() throws Exception
     {
         this.componentManager.registerMemoryConfigurationSource();
-        this.converterManager = this.componentManager.registerMockComponent(ConverterManager.class);
+
+        ExecutionContext executionContext = new ExecutionContext();
+        Execution execution = this.componentManager.registerMockComponent(Execution.class);
+        when(execution.getContext()).thenReturn(executionContext);
     }
 
     public class InnerClass
@@ -79,6 +94,11 @@ public class MethodArgumentUberspectorTest
         public String method()
         {
             return "inner";
+        }
+
+        public Optional<String> methodReturningOptional(String value)
+        {
+            return Optional.ofNullable(value);
         }
     }
 
@@ -113,7 +133,7 @@ public class MethodArgumentUberspectorTest
         }
     }
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception
     {
         this.engine = this.componentManager.getInstance(VelocityEngine.class);
@@ -123,7 +143,7 @@ public class MethodArgumentUberspectorTest
         this.context.put("var", new ExtendingClass());
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception
     {
         if (this.writer != null) {
@@ -223,24 +243,12 @@ public class MethodArgumentUberspectorTest
     }
 
     @Test
-    public void getMethodWhenExistingMethodNameButInvalidSignature() throws Exception
-    {
-        try {
-            this.engine.evaluate(this.context, this.writer, "template", new StringReader("$var.method('a', 'b')"));
-            fail("Should have raised an exception");
-        } catch (XWikiVelocityException expected) {
-            assertEquals("Failed to evaluate content with id [template]", expected.getMessage());
-            assertEquals("IllegalArgumentException: wrong number of arguments",
-                ExceptionUtils.getRootCauseMessage(expected));
-        }
-    }
-
-    @Test
     public void getMethodWithGeneric() throws Exception
     {
         when(this.converterManager.convert(new DefaultParameterizedType(null, List.class, Locale.class), "en, fr"))
             .thenReturn(Arrays.asList(Locale.ENGLISH, Locale.FRENCH));
-        this.engine.evaluate(this.context, this.writer, "template", new StringReader("$var.methodWithGeneric('en, fr')"));
+        this.engine.evaluate(this.context, this.writer, "template",
+            new StringReader("$var.methodWithGeneric('en, fr')"));
         assertEquals("success", this.writer.toString());
     }
 }

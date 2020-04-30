@@ -50,7 +50,7 @@ public class DefaultComponentDescriptor<T> extends DefaultComponentRole<T> imple
     /**
      * @see #getComponentDependencies()
      */
-    private List<ComponentDependency<?>> componentDependencies = new ArrayList<ComponentDependency<?>>();
+    private List<ComponentDependency<?>> componentDependencies = new ArrayList<>();
 
     /**
      * Default constructor.
@@ -126,7 +126,7 @@ public class DefaultComponentDescriptor<T> extends DefaultComponentRole<T> imple
      */
     public <D> void addComponentDependency(Class<D> role, String roleHint)
     {
-        DefaultComponentDependency<D> componentDependency = new DefaultComponentDependency<D>();
+        DefaultComponentDependency<D> componentDependency = new DefaultComponentDependency<>();
         componentDependency.setRole(role);
         componentDependency.setRoleHint(roleHint);
 
@@ -137,6 +137,7 @@ public class DefaultComponentDescriptor<T> extends DefaultComponentRole<T> imple
     public String toString()
     {
         ToStringBuilder builder = new XWikiToStringBuilder(this);
+        builder.append(super.toString());
         builder.append("implementation", getImplementation() == null ? null : getImplementation().getName());
         builder.append("instantiation", getInstantiationStrategy());
         return builder.toString();

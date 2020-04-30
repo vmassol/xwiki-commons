@@ -19,174 +19,350 @@
  */
 package org.xwiki.velocity.internal;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
+import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import org.apache.velocity.context.Context;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.xwiki.test.mockito.MockitoComponentMockingRule;
-import org.xwiki.velocity.VelocityConfiguration;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.xwiki.component.manager.ComponentManager;
+import org.xwiki.configuration.ConfigurationSource;
+import org.xwiki.context.Execution;
+import org.xwiki.context.ExecutionContext;
+import org.xwiki.logging.LoggerConfiguration;
+import org.xwiki.test.LogLevel;
+import org.xwiki.test.annotation.ComponentList;
+import org.xwiki.test.junit5.LogCaptureExtension;
+import org.xwiki.test.junit5.mockito.ComponentTest;
+import org.xwiki.test.junit5.mockito.InjectMockComponents;
+import org.xwiki.test.junit5.mockito.MockComponent;
+import org.xwiki.velocity.XWikiVelocityContext;
 import org.xwiki.velocity.XWikiVelocityException;
-import org.xwiki.velocity.introspection.ChainingUberspector;
-import org.xwiki.velocity.introspection.DeprecatedCheckUberspector;
-import org.xwiki.velocity.introspection.SecureUberspector;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link DefaultVelocityEngine}.
  */
+@ComponentTest
+@ComponentList(DefaultVelocityConfiguration.class)
 public class DefaultVelocityEngineTest
 {
-    @Rule
-    public MockitoComponentMockingRule<DefaultVelocityEngine> mocker =
-        new MockitoComponentMockingRule<DefaultVelocityEngine>(DefaultVelocityEngine.class);
+    public class TestClass
+    {
+        private Context context;
 
+        private String name = "name";
+
+        public TestClass()
+        {
+        }
+
+        public TestClass(Context context)
+        {
+            this.context = context;
+        }
+
+        public TestClass(Context context, String name)
+        {
+            this.context = context;
+            this.name = name;
+        }
+
+        public String getName()
+        {
+            return this.name;
+        }
+
+        public String evaluate(String input) throws XWikiVelocityException
+        {
+            return evaluate(input, DEFAULT_TEMPLATE_NAME);
+        }
+
+        public String evaluate(String input, String namespace) throws XWikiVelocityException
+        {
+            StringWriter writer = new StringWriter();
+            engine.evaluate(this.context, writer, namespace, input);
+            return writer.toString();
+        }
+    }
+
+    private static final String DEFAULT_TEMPLATE_NAME = "mytemplate";
+
+    @RegisterExtension
+    LogCaptureExtension logCapture = new LogCaptureExtension(LogLevel.WARN);
+
+    @MockComponent
+    private ComponentManager componentManager;
+
+    @MockComponent
+    private LoggerConfiguration loggerConfiguration;
+
+    @InjectMockComponents
     private DefaultVelocityEngine engine;
 
-    @Before
-    public void setUp() throws Exception
+    @MockComponent
+    private Execution execution;
+
+    @MockComponent
+    private ConfigurationSource configurationSource;
+
+    @BeforeEach
+    void setUp() throws Exception
     {
-        Properties properties = new Properties();
-        properties.put("runtime.introspector.uberspect", ChainingUberspector.class.getName());
-        properties.put("runtime.introspector.uberspect.chainClasses", SecureUberspector.class.getName() + ","
-            + DeprecatedCheckUberspector.class.getName());
-        properties.put("directive.set.null.allowed", Boolean.TRUE.toString());
-        properties.put("velocimacro.permissions.allow.inline.local.scope", Boolean.TRUE.toString());
+        when(execution.getContext()).thenReturn(new ExecutionContext());
+        when(this.loggerConfiguration.isDeprecatedLogEnabled()).thenReturn(true);
+    }
 
-        VelocityConfiguration configuration = this.mocker.getInstance(VelocityConfiguration.class);
-        when(configuration.getProperties()).thenReturn(properties);
-
-        this.engine = this.mocker.getComponentUnderTest();
+    private void assertEvaluate(String expected, String content) throws XWikiVelocityException
+    {
+        assertEvaluate(expected, content, DEFAULT_TEMPLATE_NAME);
     }
 
     private void assertEvaluate(String expected, String content, String template) throws XWikiVelocityException
     {
-        assertEvaluate(expected, content, template, new org.apache.velocity.VelocityContext());
+        assertEvaluate(expected, content, template, new XWikiVelocityContext());
+    }
+
+    private void assertEvaluate(String expected, String content, Context context) throws XWikiVelocityException
+    {
+        assertEvaluate(expected, content, DEFAULT_TEMPLATE_NAME, context);
     }
 
     private void assertEvaluate(String expected, String content, String template, Context context)
         throws XWikiVelocityException
     {
+        String result = evaluate(content, template, context);
+
+        assertEquals(expected, result);
+    }
+
+    private String evaluate(String content, String template) throws XWikiVelocityException
+    {
+        return evaluate(content, template, new XWikiVelocityContext());
+    }
+
+    private String evaluate(String content, String template, Context context) throws XWikiVelocityException
+    {
         StringWriter writer = new StringWriter();
         this.engine.evaluate(context, writer, template, content);
-        Assert.assertEquals(expected, writer.toString());
+
+        return writer.toString();
     }
 
     @Test
-    public void testEvaluateReader() throws Exception
+    public void evaluateWithReader() throws Exception
     {
         this.engine.initialize(new Properties());
         StringWriter writer = new StringWriter();
-        this.engine.evaluate(new org.apache.velocity.VelocityContext(), writer, "mytemplate", new StringReader(
-            "#set($foo='hello')$foo World"));
-        Assert.assertEquals("hello World", writer.toString());
+        this.engine.evaluate(new XWikiVelocityContext(), writer, DEFAULT_TEMPLATE_NAME,
+            new StringReader("#set($foo='hello')$foo World"));
+        assertEquals("hello World", writer.toString());
     }
 
     @Test
-    public void testEvaluateString() throws Exception
+    public void evaluateWithString() throws Exception
     {
         this.engine.initialize(new Properties());
 
-        assertEvaluate("hello World", "#set($foo='hello')$foo World", "mytemplate");
+        assertEvaluate("hello World", "#set($foo='hello')$foo World", DEFAULT_TEMPLATE_NAME);
     }
 
     /**
      * Verify that the default configuration doesn't allow calling Class.forName.
      */
     @Test
-    public void testSecureUberspectorActiveByDefault() throws Exception
+    public void evaluateWithSecureUberspectorActiveByDefault() throws Exception
     {
         this.engine.initialize(new Properties());
 
-        String content =
-            "#set($foo = 'test')#set($object = $foo.class.forName('java.util.ArrayList')"
-                + ".newInstance())$object.size()";
-        assertEvaluate("$object.size()", content, "mytemplate");
+        String content = "#set($foo = 'test')#set($object = $foo.class.forName('java.util.ArrayList')"
+            + ".newInstance())$object.size()";
+        assertEvaluate("$object.size()", content, DEFAULT_TEMPLATE_NAME);
 
         // Verify that we log a warning and verify the message.
-        verify(this.mocker.getMockedLogger()).warn(
-            "Cannot retrieve method forName from object of class " + "java.lang.Class due to security restrictions.");
+        assertEquals(
+            "Cannot retrieve method forName from object of class java.lang.Class due to security restrictions.",
+            logCapture.getMessage(0));
     }
 
     /**
      * Verify that the default configuration allows #setting existing variables to null.
      */
     @Test
-    public void testSettingNullAllowedByDefault() throws Exception
+    public void evaluateWithSettingNullAllowedByDefault() throws Exception
     {
         this.engine.initialize(new Properties());
         StringWriter writer = new StringWriter();
-        Context context = new org.apache.velocity.VelocityContext();
+        Context context = new XWikiVelocityContext();
         context.put("null", null);
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         list.add("1");
         list.add(null);
         list.add("3");
         context.put("list", list);
-        this.engine.evaluate(context, writer, "mytemplate", "#set($foo = true)${foo}#set($foo = $null)${foo}\n"
-            + "#foreach($i in $list)${velocityCount}=$!{i} #end");
-        Assert.assertEquals("true${foo}\n1=1 2= 3=3 ", writer.toString());
+        this.engine.evaluate(context, writer, DEFAULT_TEMPLATE_NAME,
+            "#set($foo = true)${foo}#set($foo = $null)${foo}\n" + "#foreach($i in $list)${foreach.count}=$!{i} #end");
+        assertEquals("true${foo}\n1=1 2= 3=3 ", writer.toString());
 
         String content =
-            "#set($foo = true)${foo}#set($foo = $null)${foo}\n" + "#foreach($i in $list)${velocityCount}=$!{i} #end";
+            "#set($foo = true)${foo}#set($foo = $null)${foo}\n" + "#foreach($i in $list)${foreach.count}=$!{i} #end";
 
-        assertEvaluate("true${foo}\n1=1 2= 3=3 ", content, "mytemplate", context);
+        assertEvaluate("true${foo}\n1=1 2= 3=3 ", content, DEFAULT_TEMPLATE_NAME, context);
     }
 
     @Test
-    public void testOverrideConfiguration() throws Exception
+    public void evaluateWithOverrideConfiguration() throws Exception
     {
         // For example try setting a non secure Uberspector.
         Properties properties = new Properties();
-        properties
-            .setProperty("runtime.introspector.uberspect", "org.apache.velocity.util.introspection.UberspectImpl");
+        properties.setProperty(RuntimeConstants.UBERSPECT_CLASSNAME,
+            "org.apache.velocity.util.introspection.UberspectImpl");
         this.engine.initialize(properties);
         StringWriter writer = new StringWriter();
-        this.engine.evaluate(new org.apache.velocity.VelocityContext(), writer, "mytemplate",
+        this.engine.evaluate(new XWikiVelocityContext(), writer, DEFAULT_TEMPLATE_NAME,
             "#set($foo = 'test')#set($object = $foo.class.forName('java.util.ArrayList')"
                 + ".newInstance())$object.size()");
-        Assert.assertEquals("0", writer.toString());
+        assertEquals("0", writer.toString());
     }
 
     @Test
-    public void testMacroIsolation() throws Exception
+    public void evaluateMacroIsolation() throws Exception
     {
         this.engine.initialize(new Properties());
-        Context context = new org.apache.velocity.VelocityContext();
+        Context context = new XWikiVelocityContext();
         this.engine.evaluate(context, new StringWriter(), "template1", "#macro(mymacro)test#end");
         assertEvaluate("#mymacro", "#mymacro", "template2");
     }
 
     @Test
-    public void testConfigureMacrosToBeGlobal() throws Exception
+    public void evaluateConfigureMacrosToBeGlobal() throws Exception
     {
         Properties properties = new Properties();
         // Force macros to be global
-        properties.put("velocimacro.permissions.allow.inline.local.scope", "false");
+        properties.put(RuntimeConstants.VM_PERM_INLINE_LOCAL, "false");
         this.engine.initialize(properties);
-        Context context = new org.apache.velocity.VelocityContext();
+        Context context = new XWikiVelocityContext();
         this.engine.evaluate(context, new StringWriter(), "template1", "#macro(mymacro)test#end");
         assertEvaluate("test", "#mymacro", "template2");
+    }
+
+    @Test
+    public void evaluateMacroScope() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("{}", "#macro (testMacro)$macro#end#testMacro()");
+    }
+
+    @Test
+    public void evaluateMacroWithMissingParameter() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("$param", "#macro (testMacro $param)$param#end#testMacro()");
+    }
+
+    @Test
+    public void evaluateMacroWithLiteralBooleanParameter() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("true", "#macro (testMacro $param)$param#end#testMacro(true)");
+    }
+
+    @Test
+    public void evaluateMacroWithLiteralMapParameter() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("{}", "#macro (testMacro $param)$param#end#testMacro({})");
+    }
+
+    @Test
+    public void evaluateMacroWithLiteralArrayParameter() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("[]", "#macro (testMacro $param)$param#end#testMacro([])");
+    }
+
+    @Test
+    public void evaluateUseGlobalMacroUseLocalMacro() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        // Register a global macro
+        evaluate("#macro (globalMacro)#localMacro()#end", "");
+
+        // Can the global macro call local macros
+        assertEvaluate("locallocal", "#macro (localMacro)local#end#localMacro()#globalMacro()");
+    }
+
+    @Test
+    public void evaluateGlobalMacroUseLocalMacroAfterInclude() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        // Register a global macro
+        evaluate("#macro (globalMacro)#localMacro()#end", "");
+
+        Context context = new XWikiVelocityContext();
+        context.put("test", new TestClass(context));
+
+        // Can the global macro still call the local macro after executing another script in the same namespace
+        assertEvaluate("locallocallocal",
+            "#globalMacro()#macro (localMacro)local#end$test.evaluate('')#globalMacro()#localMacro()", context);
+    }
+
+    @Test
+    public void evaluateWithncludeMacro() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        Context context = new XWikiVelocityContext();
+        context.put("test", new TestClass(context));
+
+        // Can the script use an included macro
+        assertEvaluate("included", "$test.evaluate('#macro(includedmacro)included#end')#includedmacro()", context);
+    }
+
+    @Test
+    public void evaluateWithOverwrittenIncludeMacro() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        Context context = new XWikiVelocityContext();
+        context.put("test", new TestClass(context));
+
+        // Can the script overwrite an included macro
+        // No because macros are registered before executing the script (TODO: fix that)
+        assertEvaluate("included",
+            "$test.evaluate('#macro(includedmacro)included#end')#macro(includedmacro)ovewritten#end#includedmacro()",
+            context);
+    }
+
+    @Test
+    public void evauateTemplateScope() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("{}", "$template");
     }
 
     /**
      * Verify namespace is properly cleared when not needed anymore.
      */
     @Test
-    public void testMacroNamespaceCleanup() throws Exception
+    public void evaluateMacroNamespaceCleanup() throws Exception
     {
         this.engine.initialize(new Properties());
 
@@ -194,8 +370,7 @@ public class DefaultVelocityEngineTest
 
         assertEvaluate("#mymacro", "#mymacro", "namespace");
 
-        this.engine.evaluate(new org.apache.velocity.VelocityContext(), new StringWriter(), "namespace",
-            "#macro(mymacro)test#end");
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "namespace", "#macro(mymacro)test#end");
 
         assertEvaluate("#mymacro", "#mymacro", "namespace");
 
@@ -205,8 +380,7 @@ public class DefaultVelocityEngineTest
         this.engine.startedUsingMacroNamespace("namespace");
 
         // Register macro
-        this.engine.evaluate(new org.apache.velocity.VelocityContext(), new StringWriter(), "namespace",
-            "#macro(mymacro)test#end");
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "namespace", "#macro(mymacro)test#end");
 
         assertEvaluate("test", "#mymacro", "namespace");
 
@@ -216,50 +390,178 @@ public class DefaultVelocityEngineTest
         assertEvaluate("#mymacro", "#mymacro", "namespace");
     }
 
-    /**
-     * Make sure several thread that supposedly use the same namespace string don't collide.
-     * 
-     * @throws XWikiVelocityException
-     * @throws InterruptedException
-     * @throws ExecutionException
-     */
     @Test
-    public void testThreadsafeNamespaces() throws XWikiVelocityException, InterruptedException, ExecutionException
+    public void evaluateWithStopCommand() throws Exception
     {
         this.engine.initialize(new Properties());
+
+        assertEvaluate("hello world", "hello world#stop", DEFAULT_TEMPLATE_NAME);
+    }
+
+    @Test
+    public void evaluateVelocityCount() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("1true2true3true4true5false", "#foreach($nb in [1,2,3,4,5])$velocityCount$velocityHasNext#end",
+            DEFAULT_TEMPLATE_NAME);
+
+        assertEquals("Deprecated binding [$velocityCount] used in [mytemplate]", logCapture.getMessage(0));
+        assertEquals("Deprecated binding [$velocityHasNext] used in [mytemplate]", logCapture.getMessage(1));
+        assertEquals("Deprecated binding [$velocityCount] used in [mytemplate]", logCapture.getMessage(2));
+        assertEquals("Deprecated binding [$velocityHasNext] used in [mytemplate]", logCapture.getMessage(3));
+        assertEquals("Deprecated binding [$velocityCount] used in [mytemplate]", logCapture.getMessage(4));
+        assertEquals("Deprecated binding [$velocityHasNext] used in [mytemplate]", logCapture.getMessage(5));
+        assertEquals("Deprecated binding [$velocityCount] used in [mytemplate]", logCapture.getMessage(6));
+        assertEquals("Deprecated binding [$velocityHasNext] used in [mytemplate]", logCapture.getMessage(7));
+        assertEquals("Deprecated binding [$velocityCount] used in [mytemplate]", logCapture.getMessage(8));
+        assertEquals("Deprecated binding [$velocityHasNext] used in [mytemplate]", logCapture.getMessage(9));
+    }
+
+    @Test
+    public void evaluateEmptyNamespaceInheritance() throws Exception
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("#mymacro", "#mymacro", "namespace");
+
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "", "#macro(mymacro)test#end");
+
+        assertEvaluate("test", "#mymacro", "namespace");
+    }
+
+    @Test
+    public void evaluateOverrideMacros() throws Exception
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("#mymacro", "#mymacro", "namespace");
+
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "", "#macro(mymacro)global#end");
+
+        assertEvaluate("global", "#mymacro", "namespace");
 
         // Start using namespace "namespace"
         this.engine.startedUsingMacroNamespace("namespace");
 
         // Register macro
-        Context context = new org.apache.velocity.VelocityContext();
-        this.engine.evaluate(context, new StringWriter(), "namespace", "#macro(mymacro)test#end");
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "namespace", "#macro(mymacro)test1#end");
 
-        assertEvaluate("test", "#mymacro", "namespace");
+        assertEvaluate("test1", "#mymacro", "namespace");
 
-        ExecutorService pool = Executors.newSingleThreadExecutor();
-        Future<Void> future = pool.submit(new Callable<Void>()
-        {
-            @Override
-            public Void call() throws Exception
-            {
-                // the macro should not be available in a different thread than the one which registered it
-                assertEvaluate("#mymacro", "#mymacro", "namespace");
+        // Override macro
+        this.engine.evaluate(new XWikiVelocityContext(), new StringWriter(), "namespace", "#macro(mymacro)test2#end");
 
-                return null;
-            }
-        });
-        future.get();
+        assertEvaluate("test2", "#mymacro", "namespace");
+
+        // Override in the same script
+        assertEvaluate("test4", "#macro(mymacro)test3#end#macro(mymacro)test4#end#mymacro", "namespace");
 
         // Mark namespace "namespace" as not used anymore
         this.engine.stoppedUsingMacroNamespace("namespace");
     }
 
     @Test
-    public void testEvaluateWithStopCommand() throws Exception
+    public void evaluateMacroParameters() throws Exception
     {
         this.engine.initialize(new Properties());
 
-        assertEvaluate("hello world", "hello world#stop", "mytemplate");
+        assertEvaluate("$caller", "#macro (testMacro $called)$called#end#testMacro($caller)");
+        assertEvaluate("$caller",
+            "#macro (testMacro $called)#set($called = $NULL)$called#set($called = 'value')#end#testMacro($caller)");
+        assertEvaluate("$caller",
+            "#macro (testMacro $called)#set($called = $NULL)$called#set($called = 'value')#end#set($caller = 'value')#testMacro($caller)");
+        assertEvaluate("$caller$caller2$caller",
+            "#macro(macro1 $called)$called#macro2($caller2)$called#end#macro(macro2 $called)$called#end#macro1($caller)");
+
+        Context context = new XWikiVelocityContext();
+        context.put("test", new TestClass(context));
+        context.put("other", new TestClass(context, "othername"));
+
+        assertEvaluate("namename", "#macro (testMacro $test $name)$name#end$test.name#testMacro($other, $test.name)",
+            context);
+    }
+
+    @Test
+    public void evaluateMissingMacroParameter() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("global", "#macro(mymacro $var)$var#end#set($var = 'global')#mymacro()");
+    }
+
+    @Test
+    public void evaluateSetSharpString() throws Exception
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("#", "#set($var = \"#\")$var", DEFAULT_TEMPLATE_NAME);
+        assertEvaluate("test#", "#set($var = \"test#\")$var", DEFAULT_TEMPLATE_NAME);
+    }
+
+    @Test
+    public void evaluateSetDollarString() throws Exception
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("$", "#set($var = \"$\")$var", DEFAULT_TEMPLATE_NAME);
+        assertEvaluate("test$", "#set($var = \"test$\")$var", DEFAULT_TEMPLATE_NAME);
+    }
+
+    @Test
+    public void evaluateExpressionFollowedByTwoPipes() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("$var||", "$var||");
+    }
+
+    @Test
+    public void evaluateClassMethods() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        Context context = new XWikiVelocityContext();
+        context.put("var", new TestClass());
+
+        assertEvaluate("org.xwiki.velocity.internal.DefaultVelocityEngineTest$TestClass name",
+            "$var.class.getName() $var.getName()", context);
+    }
+
+    @Test
+    public void evaluateWithSubEvaluate() throws XWikiVelocityException
+    {
+        this.engine.initialize(new Properties());
+
+        Context context = new XWikiVelocityContext();
+        context.put("test", new TestClass(context));
+
+        assertEvaluate("top", "#set($var = 'top')$test.evaluate('$var')", context);
+        assertEvaluate("sub", "$test.evaluate('#set($var = \"sub\")')$var", context);
+        assertEvaluate("sub", "#set($var = 'top')$test.evaluate('#set($var = \"sub\")')$var", context);
+
+        // TODO: update this test when a decision is taken in Velocity side regarding macro context behavior
+        // See
+        // https://mail-archives.apache.org/mod_mbox/velocity-dev/202001.mbox/%3cCAPnKnLHmL2oeYBNHvq3FHO1BmFW0DFjChk6sxXb9s+mwKhxirQ@mail.gmail.com%3e
+        // assertEvaluate("local",
+        // "#macro(mymacro)#set($var = 'local')$test.evaluate('#set($var = \"global\")')$var#end#mymacro()", context);
+    }
+
+    @Test
+    public void evaluateSpaceGobling() throws Exception
+    {
+        this.engine.initialize(new Properties());
+
+        assertEvaluate("value\nvalueline", "#macro (testMacro)value#end#testMacro\n#testMacro()\nline");
+    }
+
+    @Test
+    public void evaluateWhenNotInitialized()
+    {
+        Throwable exception = assertThrows(XWikiVelocityException.class, () -> {
+            this.engine.evaluate(null, new StringWriter(), null, (Reader) null);
+        });
+        assertEquals("This Velocity Engine has not yet been initialized. "
+            + "You must call its initialize() method before you can use it.", exception.getMessage());
     }
 }

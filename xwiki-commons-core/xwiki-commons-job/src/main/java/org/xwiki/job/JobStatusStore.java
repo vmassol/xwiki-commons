@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.xwiki.component.annotation.Role;
 import org.xwiki.job.event.status.JobStatus;
+import org.xwiki.logging.LogQueue;
+import org.xwiki.logging.tail.LoggerTail;
 
 /**
  * Store and retrieve {@link JobStatus} instances.
@@ -35,7 +37,7 @@ public interface JobStatusStore
 {
     /**
      * @param id the id of the job
-     * @return the job status
+     * @return the job status or null if there's no matching job id
      */
     JobStatus getJobStatus(List<String> id);
 
@@ -53,4 +55,15 @@ public interface JobStatusStore
      * @param id the id of the job
      */
     void remove(List<String> id);
+
+    /**
+     * @param jobId the identifier of the job
+     * @param readonly true of the log is readonly
+     * @return the {@link LoggerTail} instance
+     * @since 11.9RC1
+     */
+    default LoggerTail createLoggerTail(List<String> jobId, boolean readonly)
+    {
+        return new LogQueue();
+    }
 }

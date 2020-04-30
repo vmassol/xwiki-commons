@@ -21,7 +21,13 @@ package org.xwiki.properties.test;
 
 import java.util.List;
 
+import org.apache.commons.lang3.tuple.Triple;
+import org.xwiki.properties.annotation.PropertyAdvanced;
 import org.xwiki.properties.annotation.PropertyDescription;
+import org.xwiki.properties.annotation.PropertyDisplayHidden;
+import org.xwiki.properties.annotation.PropertyDisplayType;
+import org.xwiki.properties.annotation.PropertyFeature;
+import org.xwiki.properties.annotation.PropertyGroup;
 import org.xwiki.properties.annotation.PropertyHidden;
 import org.xwiki.properties.annotation.PropertyId;
 import org.xwiki.properties.annotation.PropertyMandatory;
@@ -46,6 +52,16 @@ public class TestBean
     private List<Integer> genericProp;
 
     public String propertyWithDifferentId;
+
+    private String deprecatedParameter;
+
+    private String advancedParameter;
+
+    private String displayTypeParameter;
+
+    private String displayTypeParameter2;
+
+    private boolean displayHiddenParameter;
 
     @PropertyName("Public Field")
     @PropertyDescription("a public field")
@@ -77,6 +93,7 @@ public class TestBean
     }
 
     @PropertyDescription("prop1 description")
+    @PropertyFeature("feature1")
     public void setProp1(String prop1)
     {
         this.prop1 = prop1;
@@ -141,5 +158,64 @@ public class TestBean
     public void setPropertyWithDifferentId(String propertyWithDifferentId)
     {
         this.propertyWithDifferentId = propertyWithDifferentId;
+    }
+
+    @Deprecated
+    public String getDeprecatedParameter()
+    {
+        return deprecatedParameter;
+    }
+
+    @Deprecated
+    @PropertyGroup({"test1", "test2"})
+    public void setDeprecatedParameter(String deprecatedParameter)
+    {
+        this.deprecatedParameter = deprecatedParameter;
+    }
+
+    @PropertyAdvanced
+    @PropertyGroup({"test1", "test2"})
+    @PropertyFeature("feature2")
+    public String getAdvancedParameter()
+    {
+        return advancedParameter;
+    }
+
+    public void setAdvancedParameter(String advancedParameter)
+    {
+        this.advancedParameter = advancedParameter;
+    }
+
+    @PropertyDisplayType({Triple.class, Boolean.class, String.class, Long.class})
+    public String getDisplayTypeParameter()
+    {
+        return displayTypeParameter;
+    }
+
+    public void setDisplayTypeParameter(String displayTypeParameter)
+    {
+        this.displayTypeParameter = displayTypeParameter;
+    }
+
+    @PropertyDisplayType(Boolean.class)
+    public String getDisplayTypeParameter2()
+    {
+        return displayTypeParameter2;
+    }
+
+    public void setDisplayTypeParameter2(String displayTypeParameter2)
+    {
+        this.displayTypeParameter2 = displayTypeParameter2;
+    }
+
+    public void setDisplayHiddenParameter(boolean displayHiddenParameter)
+    {
+        this.displayHiddenParameter = displayHiddenParameter;
+    }
+
+    @PropertyDisplayHidden
+    public boolean getDisplayHiddenParameter()
+    {
+        return this.displayHiddenParameter;
     }
 }

@@ -71,9 +71,21 @@ public final class HTMLUtils
     public static class XWikiXMLOutputter extends XMLOutputter
     {
         /**
+         * Regex for a named entity reference as defined in:
+         * https://www.w3.org/TR/WD-xml-lang-970630#dt-entref and https://www.w3.org/TR/WD-xml-lang-970630#NT-Name.
+         */
+        private static final String NAMED_ENTITY_REFERENCE = "&[a-zA-Z_:][a-zA-Z0-9.-_:]*;";
+
+        /**
+         * Regex for a character reference as defined in:
+         * https://www.w3.org/TR/WD-xml-lang-970630#dt-charref.
+         */
+        private static final String CHARACTER_REFERENCE = "&#[0-9]+;|&#x[0-9a-fA-F]+;";
+
+        /**
          * Regex to recognize a XML Entity.
          */
-        private static final Pattern ENTITY = Pattern.compile("&[a-zA-Z]+;|&#[0-9a-zA-Z]+;");
+        private static final Pattern ENTITY = Pattern.compile(NAMED_ENTITY_REFERENCE + "|" + CHARACTER_REFERENCE);
 
         /**
          * Ampersand character.
@@ -122,7 +134,7 @@ public final class HTMLUtils
                 }
             } else {
                 result = escapeAmpersand(text);
-                StringUtils.replaceEach(text, REPLACE_ELEMENTS_SEARCH, REPLACE_ELEMENTS_RESULT);
+                result = StringUtils.replaceEach(result, REPLACE_ELEMENTS_SEARCH, REPLACE_ELEMENTS_RESULT);
             }
 
             return result;

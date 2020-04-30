@@ -22,11 +22,14 @@ package org.xwiki.tool.xar.internal;
 import java.io.File;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
+import org.dom4j.Node;
 import org.dom4j.io.SAXReader;
 
 /**
@@ -37,6 +40,10 @@ import org.dom4j.io.SAXReader;
 public class XWikiDocument
 {
     private static final String AUTHOR_TAG = "author";
+
+    private static final String MIMETYPE_TAG = "mimetype";
+
+    private static final String FILENAME_TAG = "filename";
 
     /**
      * @see #getReference()
@@ -71,10 +78,10 @@ public class XWikiDocument
     private String contentAuthor;
 
     /**
-     * @see #getAttachmentAuthors()
-     * @since 7.0RC1
+     * @see #getAttachmentData()
+     * @since 10.6RC1
      */
-    private List<String> attachmentAuthors;
+    private List<Map<String, String>> attachmentData;
 
     /**
      * @see #getVersion()
@@ -117,9 +124,39 @@ public class XWikiDocument
     private String syntaxId;
 
     /**
+     * @see #getContent()
+     */
+    private String content;
+
+    /**
      * @see #containsTranslations()
      */
     private boolean containsTranslations;
+
+    /**
+     * @see #getTranslationVisibilities()
+     */
+    private List<String> translationVisibilities = new ArrayList<>();
+
+    /**
+     * @see #datePresent()
+     */
+    private boolean datePresent;
+
+    /**
+     * @see #contentUpdateDatePresent()
+     */
+    private boolean contentUpdateDatePresent;
+
+    /**
+     * @see #creationDatePresent()
+     */
+    private boolean creationDatePresent;
+
+    /**
+     * @see #isAttachmentDatePresent()
+     */
+    private boolean attachmentDatePresent;
 
     /**
      * Parse XML file to extract document information.
@@ -131,7 +168,7 @@ public class XWikiDocument
     {
         SAXReader reader = new SAXReader();
         fromXML(reader.read(file));
-        
+
     }
 
     /**
@@ -158,20 +195,7 @@ public class XWikiDocument
 
         Element rootElement = domdoc.getRootElement();
 
-        this.reference = rootElement.attributeValue("reference");
-        if (this.reference == null) {
-            String name = readElement(rootElement, "name");
-            String space = readElement(rootElement, "web");
-
-            // If the reference, name and space don't exist we consider that we're not reading an XML that corresponds
-            // to a wiki page.
-            if (name == null && space == null) {
-                throw new DocumentException(String.format("Content doesn't point to valid wiki page XML",
-                    domdoc.getName()));
-            }
-
-            this.reference = space == null ? name : escapeSpaceOrPageName(space) + '.' + escapeSpaceOrPageName(name);
-        }
+        this.reference = readDocumentReference(domdoc);
 
         this.locale = rootElement.attributeValue("locale");
         if (this.locale == null) {
@@ -187,15 +211,66 @@ public class XWikiDocument
         this.parent = readElement(rootElement, "parent");
         this.comment = readElement(rootElement, "comment");
         this.minorEdit = readElement(rootElement, "minorEdit");
-        this.attachmentAuthors = readAttachmentAuthors(rootElement);
+        this.attachmentData = readAttachmentData(rootElement);
         this.isHidden = Boolean.parseBoolean(readElement(rootElement, "hidden"));
         this.title = readElement(rootElement, "title");
         this.syntaxId = readElement(rootElement, "syntaxId");
+        this.content = readElement(rootElement, "content");
+
+        this.datePresent = isElementPresent(rootElement, "date");
+        this.contentUpdateDatePresent = isElementPresent(rootElement, "contentUpdateDate");
+        this.creationDatePresent = isElementPresent(rootElement, "creationDate");
+        this.attachmentDatePresent = rootElement.selectSingleNode("//attachment/date") != null;
 
         // Does this document contain a XWiki.TranslationDocumentClass xobject?
-        if (rootElement.selectNodes("//object/className[text() = 'XWiki.TranslationDocumentClass']").size() > 0) {
+        if (!rootElement.selectNodes("//object/className[text() = 'XWiki.TranslationDocumentClass']").isEmpty()) {
             this.containsTranslations = true;
+            // Record the visibility
+            for (Node node : rootElement
+                .selectNodes("//object/className[text() = 'XWiki.TranslationDocumentClass']/../property/scope")) {
+                this.translationVisibilities.add(node.getStringValue());
+            }
         }
+    }
+
+    /**
+     * @param domdoc the DOM document containing and XML wiki page
+     * @return the reference of the wiki page
+     * @throws DocumentException if it is not a valid XML wiki page
+     * @since 10.8RC1
+     */
+    public static String readDocumentReference(Document domdoc) throws DocumentException
+    {
+        Element rootElement = domdoc.getRootElement();
+
+        String result = rootElement.attributeValue("reference");
+        if (result == null) {
+            String name = readElement(rootElement, "name");
+            String space = readElement(rootElement, "web");
+
+            // If the reference, name and space don't exist we consider that we're not reading an XML that corresponds
+            // to a wiki page.
+            if (name == null && space == null) {
+                throw new DocumentException(
+                    String.format("Content doesn't point to valid wiki page XML [%s]", domdoc.getName()));
+            }
+
+            result = space == null ? name : escapeSpaceOrPageName(space) + '.' + escapeSpaceOrPageName(name);
+        }
+
+        return result;
+    }
+
+    /**
+     * @param rootElement the root XML element under which to find the element
+     * @param elementName the name of the element to read
+     * @return {@code true} if the element is present; {@code false} otherwise
+     * @since 10.8RC1
+     */
+    public static boolean isElementPresent(Element rootElement, String elementName)
+    {
+        Element element = rootElement.element(elementName);
+        return element != null;
     }
 
     /**
@@ -204,24 +279,50 @@ public class XWikiDocument
      * @param rootElement the root XML element under which to find the element
      * @param elementName the name of the element to read
      * @return null or the element value as a String
+     * @throws DocumentException if it is not a valid XML wiki page
+     * @since 10.8RC1
      */
-    private String readElement(Element rootElement, String elementName)
+    public static String readElement(Element rootElement, String elementName) throws DocumentException
     {
         String result = null;
         Element element = rootElement.element(elementName);
         if (element != null) {
+            // Make sure the element does not have any child element
+            if (!element.isTextOnly()) {
+                throw new DocumentException("Unexpected non-text content found in element [" + elementName + "]");
+            }
+
             result = element.getText();
         }
         return result;
     }
 
-    private List<String> readAttachmentAuthors(Element rootElement)
+    /**
+     * @param rootElement the root element of the XML document
+     * @return the list of data for each attachment
+     * @throws DocumentException if it is not a valid XML wiki page
+     * @since 10.8RC1
+     */
+    public static List<Map<String, String>> readAttachmentData(Element rootElement) throws DocumentException
     {
-        List<String> authors = new ArrayList<>();
-        for (Object attachmentNode : rootElement.elements("attachment")) {
-            authors.add(readElement((Element) attachmentNode, AUTHOR_TAG));
+        List<Map<String, String>> data = new ArrayList<>();
+        for (Element attachmentNode : rootElement.elements("attachment")) {
+            Map<String, String> map = new HashMap<>();
+            String authorValue = readElement(attachmentNode, AUTHOR_TAG);
+            if (authorValue != null) {
+                map.put(AUTHOR_TAG, authorValue);
+            }
+            String mimetypeValue = readElement(attachmentNode, MIMETYPE_TAG);
+            if (mimetypeValue != null) {
+                map.put(MIMETYPE_TAG, mimetypeValue);
+            }
+            String filenameValue = readElement(attachmentNode, FILENAME_TAG);
+            if (filenameValue != null) {
+                map.put(FILENAME_TAG, filenameValue);
+            }
+            data.add(map);
         }
-        return authors;
+        return data;
     }
 
     /**
@@ -333,12 +434,12 @@ public class XWikiDocument
     }
 
     /**
-     * @return the attachment authors and an empty list if there's no attachment
-     * @since 7.0RC1
+     * @return the attachment data (authors, mimetypes, etc) and an empty list if there's no attachment
+     * @since 10.6RC1
      */
-    public List<String> getAttachmentAuthors()
+    public List<Map<String, String>> getAttachmentData()
     {
-        return this.attachmentAuthors;
+        return this.attachmentData;
     }
 
     /**
@@ -376,6 +477,16 @@ public class XWikiDocument
     }
 
     /**
+     * @return the list of Translation xobject visibilities (WIKI, USER, GLOBAL, etc) and an empty list if no
+     *         translation exist on this page
+     * @since 10.1RC1
+     */
+    public List<String> getTranslationVisibilities()
+    {
+        return this.translationVisibilities;
+    }
+
+    /**
      * @return the document's syntax id
      * @since 8.1M1
      */
@@ -385,10 +496,20 @@ public class XWikiDocument
     }
 
     /**
+     * @return the content of the document
+     * @since 10.10RC1
+     */
+    public String getContent()
+    {
+        return this.content;
+    }
+
+    /**
      * @param name the name to escape
      * @return the escaped name
+     * @since 10.8RC1
      */
-    private String escapeSpaceOrPageName(String name)
+    public static String escapeSpaceOrPageName(String name)
     {
         return name != null ? name.replaceAll("[\\\\\\.]", "\\\\$0") : null;
     }
@@ -409,5 +530,41 @@ public class XWikiDocument
         }
 
         return doc.getReference();
+    }
+
+    /**
+     * @return {@code true} if the date field is present; false otherwise
+     * @since 10.8RC1
+     */
+    public boolean isDatePresent()
+    {
+        return datePresent;
+    }
+
+    /**
+     * @return {@code true} if the contentUpdateDate field is present; false otherwise
+     * @since 10.8RC1
+     */
+    public boolean isContentUpdateDatePresent()
+    {
+        return contentUpdateDatePresent;
+    }
+
+    /**
+     * @return {@code true} if the creationDate field is present; false otherwise
+     * @since 10.8RC1
+     */
+    public boolean isCreationeDatePresent()
+    {
+        return creationDatePresent;
+    }
+
+    /**
+     * @return {@code true} if the date field is present for an attachment; false otherwise
+     * @since 10.8RC1
+     */
+    public boolean isAttachmentDatePresent()
+    {
+        return attachmentDatePresent;
     }
 }

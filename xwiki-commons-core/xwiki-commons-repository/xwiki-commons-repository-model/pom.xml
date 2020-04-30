@@ -25,19 +25,28 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-repository</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-repository-model</artifactId>
   <name>XWiki Commons - Repository - Model</name>
   <packaging>jar</packaging>
   <description>The (JAXB) model for XML resource representations served by the Extension REST module.</description>
   <properties>
+    <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
     <!-- Old names of this module used for retro compatibility when resolving dependencies of old extensions -->
-    <xwiki.extension.features>org.xwiki.platform:xwiki-platform-extension-repository-xwiki-model:org.xwiki.commons:xwiki-commons-extension-repository-xwiki-model</xwiki.extension.features>
+    <xwiki.extension.features>
+      org.xwiki.platform:xwiki-platform-extension-repository-xwiki-model:org.xwiki.commons:xwiki-commons-extension-repository-xwiki-model
+    </xwiki.extension.features>
 
     <!-- Only contain generated sources for which we don't control the code style -->
     <xwiki.checkstyle.skip>true</xwiki.checkstyle.skip>
   </properties>
+  <dependencies>
+    <dependency>
+      <groupId>jakarta.xml.bind</groupId>
+      <artifactId>jakarta.xml.bind-api</artifactId>
+    </dependency>
+  </dependencies>
   <build>
     <plugins>
       <plugin>

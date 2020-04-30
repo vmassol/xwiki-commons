@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-core</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-groovy</artifactId>
   <name>XWiki Commons - Groovy</name>
@@ -33,6 +33,9 @@
   <description>XWiki Commons - Groovy</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.94</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>100</xwiki.pitest.mutationThreshold>
+    <!-- Impersonate the old groovy-all module so that EM does not try to install it when hitting it as dependency of an extension -->
+    <xwiki.extension.features>org.codehaus.groovy:groovy-all</xwiki.extension.features>
   </properties>
   <dependencies>
     <dependency>
@@ -48,14 +51,58 @@
     <!-- Groovy engine -->
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
-      <artifactId>groovy-all</artifactId>
+      <artifactId>groovy</artifactId>
     </dependency>
-    <!-- Adding a dependency on Ivy since groovy-all only has an optional dependency on it and since we want to bundle
-         it so that XWiki users scripting in Groovy can use Grapes out of the box. -->
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-datetime</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-jmx</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-json</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-jsr223</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-macro</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-nio</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-servlet</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-sql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-templates</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-xml</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-dateutil</artifactId>
+    </dependency>
+    <!-- Adding a dependency on Ivy since the main groovy artifact POM only has an optional dependency on it and since
+         we want to bundle it so that XWiki users scripting in Groovy can use Grapes out of the box. -->
     <dependency>
       <groupId>org.apache.ivy</groupId>
       <artifactId>ivy</artifactId>
-      <version>2.3.0</version>
+      <version>${ivy.version}</version>
     </dependency>
     <!-- Test Dependencies -->
     <dependency>

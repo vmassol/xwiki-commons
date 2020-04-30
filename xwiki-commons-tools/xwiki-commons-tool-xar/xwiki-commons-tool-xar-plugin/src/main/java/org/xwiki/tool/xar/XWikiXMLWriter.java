@@ -40,6 +40,8 @@ public class XWikiXMLWriter extends XMLWriter
      */
     private boolean useFormat;
 
+    private String version;
+
     /**
      * @param output the stream where to write the XML
      * @throws UnsupportedEncodingException in case encoding issue
@@ -60,6 +62,16 @@ public class XWikiXMLWriter extends XMLWriter
         this.useFormat = true;
     }
 
+    /**
+     * @param xmlVersion the XML version to set in the declaration
+     * @since 9.11.1
+     * @since 10.0
+     */
+    public void setVersion(String xmlVersion)
+    {
+        this.version = xmlVersion;
+    }
+
     @Override
     protected void writeComment(String text) throws IOException
     {
@@ -75,10 +87,9 @@ public class XWikiXMLWriter extends XMLWriter
     protected void writeNodeText(Node node) throws IOException
     {
         if (this.useFormat && node.getText().trim().length() == 0) {
-          // Check if parent node contains non text nodes
+            // Check if parent node contains non text nodes
             boolean containsNonTextNode = false;
-            for (Object object : node.getParent().content()) {
-                Node objectNode = (Node) object;
+            for (Node objectNode : node.getParent().content()) {
                 if (objectNode.getNodeType() != Node.TEXT_NODE) {
                     containsNonTextNode = true;
                     break;
@@ -99,13 +110,34 @@ public class XWikiXMLWriter extends XMLWriter
     {
         // We need to reimplement this method because of a bug (bad logic) in the original writePrintln() which checks
         // the last output char to decide whether to print a NL or not:
-        //  ...3</a></b> --> ...3</a>\n</b>
+        // ...3</a></b> --> ...3</a>\n</b>
         // but
-        //  ...3\n</a></b> --> ...3\n</a></b>
+        // ...3\n</a></b> --> ...3\n</a></b>
         // and
-        //  ...3\n</a>\n</b> --> ...3\n</a></b>
+        // ...3\n</a>\n</b> --> ...3\n</a></b>
         if (this.useFormat) {
             this.writer.write(getOutputFormat().getLineSeparator());
+        }
+    }
+
+    @Override
+    protected void writeDeclaration() throws IOException
+    {
+        String encoding = getOutputFormat().getEncoding();
+
+        // Only print of declaration is not suppressed
+        if (!getOutputFormat().isSuppressDeclaration()) {
+            this.writer.write(String.format("<?xml version=\"%s\"", this.version));
+
+            if (!getOutputFormat().isOmitEncoding()) {
+                this.writer.write(String.format(" encoding=\"%s\"", encoding));
+            }
+
+            this.writer.write("?>");
+
+            if (getOutputFormat().isNewLineAfterDeclaration()) {
+                println();
+            }
         }
     }
 }

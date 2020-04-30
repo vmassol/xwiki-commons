@@ -23,6 +23,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.xwiki.component.annotation.Component;
+import org.xwiki.job.event.status.CancelableJobStatus;
 import org.xwiki.job.event.status.JobStatus;
 import org.xwiki.script.internal.safe.ScriptSafeProvider;
 
@@ -46,6 +47,10 @@ public class JobStatusScriptSafeProvider implements ScriptSafeProvider<JobStatus
     @Override
     public <S> S get(JobStatus unsafe)
     {
+        if (unsafe instanceof CancelableJobStatus) {
+            return (S) new SafeCancelableJobStatus((CancelableJobStatus) unsafe, this.defaultSafeProvider);
+        }
+
         return (S) new SafeJobStatus(unsafe, this.defaultSafeProvider);
     }
 }

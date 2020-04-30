@@ -19,11 +19,12 @@
  */
 package org.xwiki.velocity.introspection;
 
-import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.reflect.TypeUtils;
 import org.apache.velocity.runtime.RuntimeServices;
 import org.apache.velocity.util.RuntimeServicesAware;
@@ -33,6 +34,7 @@ import org.apache.velocity.util.introspection.VelMethod;
 import org.xwiki.component.manager.ComponentLookupException;
 import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.properties.ConverterManager;
+import org.xwiki.velocity.internal.inrospection.WrappingVelMethod;
 
 /**
  * Chainable Velocity Uberspector that tries to convert method arguments to formal parameter types when the passed
@@ -46,11 +48,14 @@ import org.xwiki.properties.ConverterManager;
  * obj.someMethod(SomeEnum.VALUE)
  * // if obj has someMethod(SomeEnum) and not someMethod(String)}
  * </pre>
+ * <p>
+ *
+ * Also handle Optional return values and unwraps them.
  *
  * @since 4.1M2
  * @version $Id$
- * @see ChainableUberspector
  */
+// TODO: Implement TypeConversionHandler instead
 public class MethodArgumentsUberspector extends AbstractChainableUberspector implements RuntimeServicesAware
 {
     /**
@@ -61,17 +66,21 @@ public class MethodArgumentsUberspector extends AbstractChainableUberspector imp
     @Override
     public void setRuntimeServices(RuntimeServices runtimeServices)
     {
+        super.setRuntimeServices(runtimeServices);
+
         ComponentManager componentManager =
             (ComponentManager) runtimeServices.getApplicationAttribute(ComponentManager.class.getName());
         try {
             this.converterManager = componentManager.getInstance(ConverterManager.class);
         } catch (ComponentLookupException e) {
-            this.log.warn("Failed to initialize " + this.getClass().getSimpleName(), e);
+            this.log.warn("Failed to find an implementation for [{}]. Working in degraded mode without Velocity "
+                + "parameter conversion. Root cause: [{}]", ConverterManager.class.getName(),
+                ExceptionUtils.getRootCauseMessage(e));
         }
     }
 
     @Override
-    public VelMethod getMethod(Object obj, String methodName, Object[] args, Info i) throws Exception
+    public VelMethod getMethod(Object obj, String methodName, Object[] args, Info i)
     {
         // Let Velocity find a matching method. However, Velocity finds the closest matching method.
         // According to the JavaDoc of MethodMap:
@@ -93,7 +102,7 @@ public class MethodArgumentsUberspector extends AbstractChainableUberspector imp
             if (velMethod == null) {
                 shouldConvert = true;
             } else {
-                Method method = getPrivateMethod(velMethod);
+                Method method = velMethod.getMethod();
                 boolean sameParameterNumbers = method.getParameterTypes().length == args.length;
                 if (!sameParameterNumbers) {
                     shouldConvert = true;
@@ -115,21 +124,6 @@ public class MethodArgumentsUberspector extends AbstractChainableUberspector imp
         }
 
         return velMethod;
-    }
-
-    /**
-     * This is hackish but there's no way in Velocity to get access to the underlying Method from a VelMethod instance.
-     */
-    private Method getPrivateMethod(VelMethod velMethod) throws Exception
-    {
-        Field methodField = velMethod.getClass().getDeclaredField("method");
-        boolean isAccessible = methodField.isAccessible();
-        try {
-            methodField.setAccessible(true);
-            return (Method) methodField.get(velMethod);
-        } finally {
-            methodField.setAccessible(isAccessible);
-        }
     }
 
     /**
@@ -194,43 +188,17 @@ public class MethodArgumentsUberspector extends AbstractChainableUberspector imp
      *
      * @version $Id$
      */
-    private class ConvertingVelMethod implements VelMethod
+    private class ConvertingVelMethod extends WrappingVelMethod
     {
-        /** The real method that performs the actual call. */
-        private VelMethod innerMethod;
-
-        /**
-         * Constructor.
-         *
-         * @param realMethod the real method to wrap
-         */
         ConvertingVelMethod(VelMethod realMethod)
         {
-            this.innerMethod = realMethod;
+            super(realMethod);
         }
 
         @Override
-        public Object invoke(Object o, Object[] params) throws Exception
+        public Object invoke(Object o, Object[] params) throws IllegalAccessException, InvocationTargetException
         {
-            return this.innerMethod.invoke(o, convertArguments(o, this.innerMethod.getMethodName(), params));
-        }
-
-        @Override
-        public boolean isCacheable()
-        {
-            return this.innerMethod.isCacheable();
-        }
-
-        @Override
-        public String getMethodName()
-        {
-            return this.innerMethod.getMethodName();
-        }
-
-        @Override
-        public Class<?> getReturnType()
-        {
-            return this.innerMethod.getReturnType();
+            return getWrappedVelMethod().invoke(o, convertArguments(o, getWrappedVelMethod().getMethodName(), params));
         }
     }
 }

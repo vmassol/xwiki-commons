@@ -20,8 +20,13 @@
 package org.xwiki.test;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.component.embed.EmbeddableComponentManager;
 import org.xwiki.component.internal.StackingComponentEventManager;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -113,28 +118,117 @@ public class TestComponentManager extends EmbeddableComponentManager
      * Also calls methods annotated with {@link BeforeComponent} and {@link AfterComponent}.
      *
      * @param testClassInstance the test instance on which the annotations are present
+     * @param test the test method being executed
+     * @param parameterInstances the instances that will be passed as parameters to methods annotated with
+     *        {@code @BeforeComponent} and {@code @AfterComponent}
      * @throws Exception if an error happens during initialization
      */
-    public void initializeTest(Object testClassInstance) throws Exception
+    public void initializeTest(Object testClassInstance, Method test, Object... parameterInstances) throws Exception
     {
         Class<?> testClass = testClassInstance.getClass();
 
         // If there are methods annotated with the BeforeComponent annotation then call them. This gives an
         // opportunity for the test to register some components *before* we register the other components below.
-        for (Method declaredMethod : testClass.getMethods()) {
-            if (declaredMethod.isAnnotationPresent(BeforeComponent.class)) {
-                declaredMethod.invoke(testClassInstance);
-            }
+        for (Method method : getBeforeComponentAnnotatedMethods(testClass)) {
+            String target = method.getAnnotation(BeforeComponent.class).value();
+            invokeMethod(test, target, method, testClassInstance, parameterInstances);
         }
 
         this.componentRegistrator.registerComponents(testClass, this);
 
         // If there are methods annotated with the AfterComponent annotation then call them. This gives an
         // opportunity to override or modify some components *after* they are actually used.
-        for (Method declaredMethod : testClass.getMethods()) {
-            if (declaredMethod.isAnnotationPresent(AfterComponent.class)) {
-                declaredMethod.invoke(testClassInstance);
+        for (Method method : getAfterComponentAnnotatedMethods(testClass)) {
+            String target = method.getAnnotation(AfterComponent.class).value();
+            invokeMethod(test, target, method, testClassInstance, parameterInstances);
+        }
+    }
+
+    private List<Method> getBeforeComponentAnnotatedMethods(Class<?> testClass)
+    {
+        LinkedList<Method> methods = new LinkedList<>();
+        for (Method method : testClass.getMethods()) {
+            if (method.isAnnotationPresent(BeforeComponent.class)) {
+                String target = method.getAnnotation(BeforeComponent.class).value();
+                // Add to the top if the method applies globally to all test and at the bottom if not so that we
+                // execute them in the right order! Indeed, test-specific BeforeComponent methods may require fixture
+                // defined in the global ones.
+                if (StringUtils.isEmpty(target)) {
+                    methods.addFirst(method);
+                } else {
+                    methods.addLast(method);
+                }
             }
+        }
+        return methods;
+    }
+
+    private List<Method> getAfterComponentAnnotatedMethods(Class<?> testClass)
+    {
+        LinkedList<Method> methods = new LinkedList<>();
+        for (Method method : testClass.getMethods()) {
+            if (method.isAnnotationPresent(AfterComponent.class)) {
+                String target = method.getAnnotation(AfterComponent.class).value();
+                // Add to the top if the method applies globally to all test and at the bottom if not so that we
+                // execute them in the right order! Indeed, test-specific BeforeComponent methods may require fixture
+                // defined in the global ones.
+                if (StringUtils.isEmpty(target)) {
+                    methods.addFirst(method);
+                } else {
+                    methods.addLast(method);
+                }
+            }
+        }
+        return methods;
+    }
+
+    private void invokeMethod(Method test, String target, Method declaredMethod, Object testClassInstance,
+        Object... parameterInstances) throws Exception
+    {
+        if (test == null || StringUtils.isEmpty(target) || target.equalsIgnoreCase(test.getName())) {
+            invokeMethod(declaredMethod, testClassInstance, parameterInstances);
+        }
+    }
+
+    /**
+     * Initialize the test component manager by registering components based on the presence of
+     * {@link org.xwiki.test.annotation.AllComponents} and {@link org.xwiki.test.annotation.ComponentList} annotations.
+     * Also calls methods annotated with {@link BeforeComponent} and {@link AfterComponent}.
+     *
+     * @param testClassInstance the test instance on which the annotations are present
+     * @param parameterInstances the instances that will be passed as parameters to methods annotated with
+     *        {@code @BeforeComponent} and {@code @AfterComponent}
+     * @throws Exception if an error happens during initialization
+     */
+    public void initializeTest(Object testClassInstance, Object... parameterInstances) throws Exception
+    {
+        initializeTest(testClassInstance, null, parameterInstances);
+    }
+
+    private void invokeMethod(Method declaredMethod, Object testClassInstance, Object... parameterInstances)
+        throws Exception
+    {
+        // If parameters are of a type found in parameterInstances, then call the method.
+        List<Object> validatedParameterInstances = new ArrayList<>();
+        boolean isSupported = true;
+        for (Parameter parameter : declaredMethod.getParameters()) {
+            // Is there a matching parameter instance for the parameter?
+            boolean hasMatchingParameterInstance = false;
+            for (Object object : parameterInstances) {
+                if (object.getClass().isAssignableFrom(parameter.getType())) {
+                    hasMatchingParameterInstance = true;
+                    validatedParameterInstances.add(object);
+                    break;
+                }
+            }
+            if (!hasMatchingParameterInstance) {
+                isSupported = false;
+                break;
+            }
+        }
+
+        if (isSupported) {
+            declaredMethod.invoke(testClassInstance, validatedParameterInstances.toArray());
         }
     }
 

@@ -20,7 +20,6 @@
 package org.xwiki.extension;
 
 import org.xwiki.extension.repository.ExtensionRepositoryManager;
-import org.xwiki.stability.Unstable;
 
 /**
  * An extension that come from a remote extensions repository.
@@ -32,7 +31,6 @@ import org.xwiki.stability.Unstable;
  * @version $Id$
  * @since 8.3RC1
  */
-@Unstable
 public interface RemoteExtension extends Extension
 {
     /**

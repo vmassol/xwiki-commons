@@ -24,7 +24,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-cache</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-cache-infinispan</artifactId>
   <name>XWiki Commons - Cache - Infinispan</name>
@@ -32,6 +32,7 @@
   <description>XWiki Commons - Cache - Infinispan</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.68</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>0</xwiki.pitest.mutationThreshold>
     <!-- Old names of this module used for retro compatibility when resolving dependencies of old extensions -->
     <xwiki.extension.features>org.xwiki.platform:xwiki-platform-cache-infinispan</xwiki.extension.features>
   </properties>
@@ -49,19 +50,19 @@
     <dependency>
       <groupId>org.infinispan</groupId>
       <artifactId>infinispan-core</artifactId>
-      <version>8.2.6.Final</version>
+      <version>9.4.19.Final</version>
       <exclusions>
-        <!-- Use javax.transaction:jta instead to not have duplicate JARs in generated WARs -->
+        <!-- Use jakarta.transaction:jakarta.transaction-api instead to not have duplicate JARs in generated WARs -->
         <exclusion>
           <groupId>org.jboss.spec.javax.transaction</groupId>
-          <artifactId>jboss-transaction-api_1.1_spec</artifactId>
+          <artifactId>jboss-transaction-api_1.2_spec</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
-    <!-- Use javax.transaction:jta instead to not have duplicate JARs in generated WARs -->
+    <!-- Use jakarta.transaction:jakarta.transaction-api instead to not have duplicate JARs in generated WARs -->
     <dependency>
-      <groupId>javax.transaction</groupId>
-      <artifactId>jta</artifactId>
+      <groupId>jakarta.transaction</groupId>
+      <artifactId>jakarta.transaction-api</artifactId>
     </dependency>
 
     <!-- Test Dependencies -->

@@ -19,6 +19,7 @@
  */
 package org.xwiki.logging.logback.internal;
 
+import java.io.File;
 import java.util.Iterator;
 
 import org.junit.Assert;
@@ -30,9 +31,12 @@ import org.slf4j.LoggerFactory;
 import org.xwiki.logging.LogLevel;
 import org.xwiki.logging.LogQueue;
 import org.xwiki.logging.event.LogQueueListener;
+import org.xwiki.logging.internal.tail.XStreamFileLoggerTail;
 import org.xwiki.observation.internal.DefaultObservationManager;
+import org.xwiki.test.XWikiTempDirUtil;
 import org.xwiki.test.annotation.ComponentList;
 import org.xwiki.test.mockito.MockitoComponentMockingRule;
+import org.xwiki.xstream.internal.SafeXStream;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Appender;
@@ -40,6 +44,10 @@ import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.read.ListAppender;
 import ch.qos.logback.core.spi.FilterReply;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,12 +58,13 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  * @since 3.2M3
  */
-@ComponentList({ DefaultLoggerManager.class, DefaultObservationManager.class, LogbackEventGenerator.class })
+@ComponentList({ DefaultLoggerManager.class, DefaultObservationManager.class, LogbackEventGenerator.class,
+    XStreamFileLoggerTail.class })
 public class DefaultLoggerManagerTest
 {
     @Rule
     public final MockitoComponentMockingRule<DefaultLoggerManager> mocker =
-        new MockitoComponentMockingRule<DefaultLoggerManager>(DefaultLoggerManager.class);
+        new MockitoComponentMockingRule<>(DefaultLoggerManager.class);
 
     private DefaultLoggerManager loggerManager;
 
@@ -90,7 +99,7 @@ public class DefaultLoggerManagerTest
         }
 
         // Add appender
-        this.listAppender = new ListAppender<ILoggingEvent>();
+        this.listAppender = new ListAppender<>();
         this.listAppender.start();
         rootLogger.addAppender(this.listAppender);
 
@@ -132,12 +141,19 @@ public class DefaultLoggerManagerTest
         // Make sure the log has been sent to the logback appender
         Assert.assertEquals("[test] other thread", this.listAppender.list.get(1).getMessage());
 
+        this.logger.error(org.xwiki.logging.Logger.ROOT_MARKER, "[test] root log");
+
+        // Make sure the log has been added to the queue
+        Assert.assertEquals("[test] root log", queue.poll().getMessage());
+        // Make sure the log also been sent to the logback appender
+        Assert.assertEquals("[test] root log", this.listAppender.list.get(2).getMessage());
+
         this.loggerManager.popLogListener();
 
         this.logger.error("[test] after pop");
 
         Assert.assertTrue(queue.isEmpty());
-        Assert.assertEquals("[test] after pop", this.listAppender.list.get(2).getMessage());
+        Assert.assertEquals("[test] after pop", this.listAppender.list.get(3).getMessage());
     }
 
     @Test
@@ -200,13 +216,14 @@ public class DefaultLoggerManagerTest
     @Test
     public void testGetSetLoggerLevel()
     {
-        Assert.assertNull(this.loggerManager.getLoggerLevel(getClass().getName()));
+        assertNull(this.loggerManager.getLoggerLevel(getClass().getName()));
 
         LogQueue queue = new LogQueue();
 
         this.loggerManager.pushLogListener(new LogQueueListener("loglistenerid", queue));
 
         this.loggerManager.setLoggerLevel(getClass().getName(), LogLevel.WARN);
+        assertSame(LogLevel.WARN, this.loggerManager.getLoggerLevel(getClass().getName()));
 
         this.logger.debug("[test] debug message 1");
         // Provide information when the Assert fails
@@ -214,18 +231,22 @@ public class DefaultLoggerManagerTest
             Assert.fail("Should have contained no message but got [" + queue.peek().getFormattedMessage()
                 + "] instead (last message, there might be more)");
         }
-        Assert.assertEquals(0, queue.size());
+        assertEquals(0, queue.size());
 
         this.loggerManager.setLoggerLevel(getClass().getName(), LogLevel.DEBUG);
+        assertSame(LogLevel.DEBUG, this.loggerManager.getLoggerLevel(getClass().getName()));
 
         this.logger.debug("[test] debug message 2");
-        Assert.assertEquals(1, queue.size());
+        assertEquals(1, queue.size());
+
+        this.loggerManager.setLoggerLevel(getClass().getName(), null);
+        assertNull(this.loggerManager.getLoggerLevel(getClass().getName()));
     }
 
     @Test
     public void testGetLoggers()
     {
-        this.loggerManager.getLoggers();
+        assertNotNull(this.loggerManager.getLoggers());
     }
 
     @Test
@@ -237,8 +258,8 @@ public class DefaultLoggerManagerTest
 
         spyLoggerManager.initialize();
 
-        verify(this.mocker.getMockedLogger()).warn(
-            "Could not find any Logback root logger. All logging module advanced features will be disabled.");
+        verify(this.mocker.getMockedLogger())
+            .warn("Could not find any Logback root logger. All logging module advanced features will be disabled.");
     }
 
     @Test
@@ -249,5 +270,21 @@ public class DefaultLoggerManagerTest
         when(spyLoggerManager.getLoggerContext()).thenReturn(null);
 
         Assert.assertNull(spyLoggerManager.getLoggerLevel("whatever"));
+    }
+
+    @Test
+    public void createLoggerTail() throws Exception
+    {
+        this.mocker.registerMockComponent(SafeXStream.class);
+
+        File logFile = new File(XWikiTempDirUtil.createTemporaryDirectory(), "log");
+
+        Assert.assertTrue(
+            !(this.loggerManager.createLoggerTail(logFile.toPath(), true) instanceof XStreamFileLoggerTail));
+
+        Assert
+            .assertTrue(this.loggerManager.createLoggerTail(logFile.toPath(), false) instanceof XStreamFileLoggerTail);
+
+        Assert.assertTrue(this.loggerManager.createLoggerTail(logFile.toPath(), true) instanceof XStreamFileLoggerTail);
     }
 }

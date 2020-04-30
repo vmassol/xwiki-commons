@@ -25,14 +25,17 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-observation</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-observation-local</artifactId>
   <name>XWiki Commons - Observation - Local</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - Observation - Local</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.88</xwiki.jacoco.instructionRatio>
+    <!-- TODO: fix this and remove this property so that the check is not skipped -->
+    <xwiki.surefire.captureconsole.skip>true</xwiki.surefire.captureconsole.skip>
+    <xwiki.jacoco.instructionRatio>0.90</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>0</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>

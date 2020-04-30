@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
+import org.xwiki.job.event.status.CancelableJobStatus;
 import org.xwiki.job.event.status.JobProgress;
 import org.xwiki.job.event.status.JobStatus;
 import org.xwiki.job.event.status.QuestionAnsweredEvent;
@@ -35,6 +37,8 @@ import org.xwiki.logging.LogQueue;
 import org.xwiki.logging.LoggerManager;
 import org.xwiki.logging.event.LogEvent;
 import org.xwiki.logging.event.LoggerListener;
+import org.xwiki.logging.tail.LogTail;
+import org.xwiki.logging.tail.LoggerTail;
 import org.xwiki.observation.ObservationManager;
 import org.xwiki.observation.WrappedThreadEventListener;
 
@@ -45,7 +49,7 @@ import org.xwiki.observation.WrappedThreadEventListener;
  * @version $Id$
  * @since 7.4M1
  */
-public abstract class AbstractJobStatus<R extends Request> implements JobStatus
+public abstract class AbstractJobStatus<R extends Request> implements JobStatus, CancelableJobStatus
 {
     /**
      * Used register itself to receive logging and progress related events.
@@ -81,9 +85,9 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
     private final DefaultJobProgress progress = new DefaultJobProgress();
 
     /**
-     * Log sent during job execution.
+     * Used to navigate the log.
      */
-    private final LogQueue logs;
+    private transient LoggerTail loggerTail;
 
     /**
      * Used to listen to all the log produced during job execution.
@@ -94,6 +98,11 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
      * The question.
      */
     private transient volatile Object question;
+
+    /**
+     * Log sent during job execution. Kept as a cache for {@link #getLog()} and a way to unzerialize old status logs.
+     */
+    private LogQueue logs;
 
     /**
      * @see #getJobType()
@@ -136,6 +145,15 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
     private boolean canceled;
 
     /**
+     * Flag indicating if the job can be canceled.
+     */
+    private boolean cancelable;
+
+    private boolean serialized = true;
+
+    private long quesionEnd = -1;
+
+    /**
      * @param request the request provided when started the job
      * @param parentJobStatus the status of the parent job (i.e. the status of the job that started this one); pass
      *            {@code null} if this job hasn't been started by another job (i.e. if this is not a sub-job)
@@ -170,8 +188,6 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
 
         this.observationManager = observationManager;
         this.loggerManager = loggerManager;
-
-        this.logs = new LogQueue();
     }
 
     /**
@@ -183,7 +199,7 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
         this.observationManager.addListener(new WrappedThreadEventListener(this.progress));
 
         // Isolate log for the job status
-        this.logListener = new LoggerListener(LoggerListener.class.getName() + '_' + hashCode(), this.logs);
+        this.logListener = new LoggerListener(LoggerListener.class.getName() + '_' + hashCode(), getLoggerTail());
         if (isIsolated()) {
             this.loggerManager.pushLogListener(this.logListener);
         } else {
@@ -205,6 +221,13 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
 
         // Make sure the progress is closed
         this.progress.getRootStep().finish();
+
+        // Make sure the logger is closed
+        try {
+            this.loggerTail.close();
+        } catch (Exception e) {
+            // TODO: We should probably log a warning for this even if it's not a big deal
+        }
     }
 
     // JobStatus
@@ -251,10 +274,38 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
     }
 
     @Override
-    public LogQueue getLog()
+    public LogTail getLogTail()
     {
-        // Make sure to always return something (it could be null if unserialized as such)
-        return this.logs != null ? this.logs : new LogQueue();
+        return getLoggerTail();
+    }
+
+    /**
+     * @return the {@link LoggerTail} instance
+     * @since 11.9RC1
+     */
+    public LoggerTail getLoggerTail()
+    {
+        // Make sure to always return something
+        if (this.loggerTail == null) {
+            if (this.logs == null) {
+                this.logs = new LogQueue();
+            }
+            this.loggerTail = this.logs;
+        }
+
+        return this.loggerTail;
+    }
+
+    /**
+     * @param loggerTail the logger tail
+     * @since 11.9RC1
+     */
+    public void setLoggerTail(LoggerTail loggerTail)
+    {
+        this.loggerTail = loggerTail;
+        if (this.loggerTail instanceof LogQueue) {
+            this.logs = (LogQueue) this.loggerTail;
+        }
     }
 
     @Override
@@ -291,7 +342,13 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
                     answered();
                 } else {
                     if (unit != null) {
+                        // Remember timeout
+                        this.quesionEnd = System.nanoTime() + unit.toNanos(time);
+
                         notTimeout = this.answered.await(time, unit);
+
+                        // Reset time left
+                        this.quesionEnd = -1;
                     } else {
                         this.answered.await();
                     }
@@ -303,6 +360,12 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
         }
 
         return notTimeout;
+    }
+
+    @Override
+    public long getQuestionTimeLeft(TimeUnit unit)
+    {
+        return quesionEnd > -1 ? this.quesionEnd - System.nanoTime() : -1;
     }
 
     @Override
@@ -367,12 +430,12 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
         return getParentJobStatus() != null;
     }
 
-    /**
-     * @return true if the job log should be grabbed
-     */
+    @Override
     public boolean isIsolated()
     {
-        return this.isolated;
+        Boolean isolatedRequest = getRequest().isStatusLogIsolated();
+
+        return isolatedRequest != null ? isolatedRequest : this.isolated;
     }
 
     /**
@@ -392,31 +455,79 @@ public abstract class AbstractJobStatus<R extends Request> implements JobStatus
         return this.parentJobStatus;
     }
 
-    // Deprecated
-
     @Override
-    @Deprecated
-    public List<LogEvent> getLog(LogLevel level)
+    public boolean isCancelable()
     {
-        return getLog().getLogs(level);
+        return this.cancelable;
     }
 
     /**
-     * Cancel the job.
-     *
+     * @param cancelable true if the job can be canceled
+     */
+    public void setCancelable(boolean cancelable)
+    {
+        this.cancelable = cancelable;
+    }
+
+    /**
+     * {@inheritDoc}
+     * 
+     * @see org.xwiki.job.event.status.CancelableJobStatus#cancel()
      * @since 9.4RC1
      */
+    @Override
     public void cancel()
     {
         this.canceled = true;
     }
 
     /**
-     * @return {@code true} if the job was canceled, {@code false} otherwise
+     * {@inheritDoc}
+     * 
+     * @see org.xwiki.job.event.status.CancelableJobStatus#isCanceled()
      * @since 9.4RC1
      */
+    @Override
     public boolean isCanceled()
     {
         return this.canceled;
+    }
+
+    @Override
+    public boolean isSerialized()
+    {
+        Boolean serializdRequest = getRequest().isStatusSerialized();
+
+        return serializdRequest != null ? serializdRequest : this.serialized;
+    }
+
+    // Deprecated
+
+    @Override
+    @Deprecated
+    public LogQueue getLog()
+    {
+        LogQueue logQueue = this.logs;
+
+        // Make sure to always return something
+        if (logQueue == null) {
+            logQueue = new LogQueue();
+
+            if (this.loggerTail != null) {
+                this.loggerTail.log(logQueue);
+            } else {
+                this.logs = logQueue;
+            }
+        }
+
+        return logQueue;
+    }
+
+    @Override
+    @Deprecated
+    public List<LogEvent> getLog(LogLevel level)
+    {
+        return getLogTail().getLogEvents(level).stream().filter(log -> log.getLevel() == level)
+            .collect(Collectors.toList());
     }
 }

@@ -32,6 +32,7 @@ import org.xwiki.job.event.status.JobStatus;
 import org.xwiki.logging.LogLevel;
 import org.xwiki.logging.LogQueue;
 import org.xwiki.logging.event.LogEvent;
+import org.xwiki.logging.tail.LogTail;
 
 public class TestBasicGroupedJob implements GroupedJob, JobStatus
 {
@@ -149,6 +150,12 @@ public class TestBasicGroupedJob implements GroupedJob, JobStatus
     }
 
     @Override
+    public LogTail getLogTail()
+    {
+        return this.logQueue;
+    }
+
+    @Override
     public JobProgress getProgress()
     {
         // Not implemented
@@ -186,6 +193,20 @@ public class TestBasicGroupedJob implements GroupedJob, JobStatus
     {
         // Not implemented
         return null;
+    }
+
+    @Override
+    public boolean isIsolated()
+    {
+        // Not implemented
+        return true;
+    }
+
+    @Override
+    public boolean isSerialized()
+    {
+        // Not implemented
+        return true;
     }
 
     @Override

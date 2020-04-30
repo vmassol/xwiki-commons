@@ -21,6 +21,9 @@ package org.xwiki.filter.internal.type;
 
 import java.lang.reflect.Type;
 
+import javax.inject.Singleton;
+
+import org.xwiki.component.annotation.Component;
 import org.xwiki.filter.type.FilterStreamType;
 import org.xwiki.properties.converter.AbstractConverter;
 
@@ -30,6 +33,8 @@ import org.xwiki.properties.converter.AbstractConverter;
  * @version $Id$
  * @since 6.2M1
  */
+@Component
+@Singleton
 public class FilterStreamTypeConverter extends AbstractConverter<FilterStreamType>
 {
     @Override

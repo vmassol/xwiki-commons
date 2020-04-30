@@ -243,7 +243,7 @@ public interface Extension extends Comparable<Extension>
     default Collection<ExtensionId> getExtensionFeatures()
     {
         Collection<String> features = getFeatures();
-        List<ExtensionId> extensionFeatures = new ArrayList<ExtensionId>(features.size());
+        List<ExtensionId> extensionFeatures = new ArrayList<>(features.size());
         for (String feature : features) {
             extensionFeatures.add(new ExtensionId(feature, getId().getVersion()));
         }
@@ -264,7 +264,7 @@ public interface Extension extends Comparable<Extension>
     }
 
     /**
-     * @return the type of the extension
+     * @return the type of the extension, null if the extension does not have any associated file
      */
     String getType();
 
@@ -325,7 +325,7 @@ public interface Extension extends Comparable<Extension>
     }
 
     /**
-     * Return extension file descriptor. Also allows to get the content of the file.
+     * Access the associated extension file content.
      *
      * @return the file of the extension
      */

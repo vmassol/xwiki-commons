@@ -47,7 +47,7 @@ public class StackingComponentEventManager implements ComponentEventManager
     /**
      * The event stacked before been given the order to send them.
      */
-    private Stack<ComponentEventEntry> events = new Stack<ComponentEventEntry>();
+    private Stack<ComponentEventEntry> events = new Stack<>();
 
     /**
      * Indicate if event should be retained to directly sent.
@@ -94,11 +94,20 @@ public class StackingComponentEventManager implements ComponentEventManager
     }
 
     /**
-     * @param shouldStack indicate of the events received should be stacked
+     * @param shouldStack indicate if the events received should be stacked
      */
     public void shouldStack(boolean shouldStack)
     {
         this.shouldStack = shouldStack;
+    }
+
+    /**
+     * @return true if the events received should be stacked
+     * @since 12.2
+     */
+    public boolean isStacked()
+    {
+        return this.shouldStack;
     }
 
     /**

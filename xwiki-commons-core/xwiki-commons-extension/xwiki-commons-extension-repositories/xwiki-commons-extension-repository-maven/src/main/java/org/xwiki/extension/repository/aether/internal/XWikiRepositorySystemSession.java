@@ -21,6 +21,9 @@ package org.xwiki.extension.repository.aether.internal;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
@@ -30,15 +33,15 @@ import org.eclipse.aether.ConfigurationProperties;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.artifact.ArtifactType;
 import org.eclipse.aether.artifact.ArtifactTypeRegistry;
 import org.eclipse.aether.artifact.DefaultArtifactType;
 import org.eclipse.aether.repository.LocalRepository;
 import org.eclipse.aether.util.artifact.DefaultArtifactTypeRegistry;
 import org.eclipse.aether.util.repository.JreProxySelector;
 import org.eclipse.aether.util.repository.SimpleArtifactDescriptorPolicy;
+import org.xwiki.environment.Environment;
 import org.xwiki.extension.maven.internal.MavenUtils;
-
-import com.google.common.io.Files;
 
 /**
  * Encapsulate {@link DefaultRepositorySystemSession} to generate and clean a temporary local repository for each
@@ -49,7 +52,27 @@ import com.google.common.io.Files;
  */
 public class XWikiRepositorySystemSession extends AbstractForwardingRepositorySystemSession implements AutoCloseable
 {
+    /**
+     * The {@link ArtifactType} corresponding to a known type.
+     */
+    public static final Map<String, ArtifactType> TYPE_MAPPING = new HashMap();
+
     static final JreProxySelector JREPROXYSELECTOR = new JreProxySelector();
+
+    private static final String TYPE_BUNDLE = "bundle";
+
+    private static final String TYPE_ECLIPSE_PLUGIN = "eclipse-plugin";
+
+    private static final String TYPE_WEBJAR = "webjar";
+
+    static {
+        TYPE_MAPPING.put(TYPE_BUNDLE,
+            new DefaultArtifactType(TYPE_BUNDLE, MavenUtils.JAR_EXTENSION, "", MavenUtils.JAVA_LANGUAGE));
+        TYPE_MAPPING.put(TYPE_ECLIPSE_PLUGIN,
+            new DefaultArtifactType(TYPE_ECLIPSE_PLUGIN, MavenUtils.JAR_EXTENSION, "", MavenUtils.JAVA_LANGUAGE));
+        TYPE_MAPPING.put(TYPE_WEBJAR,
+            new DefaultArtifactType(TYPE_WEBJAR, MavenUtils.JAR_EXTENSION, "", (String) null));
+    }
 
     private final RepositorySystemSession session;
 
@@ -62,12 +85,17 @@ public class XWikiRepositorySystemSession extends AbstractForwardingRepositorySy
     {
         this.session = session;
         this.closable = false;
+
+        // Add various type descriptors
+        addTypes(session);
     }
 
     /**
      * @param repositorySystem the AETHER repository system component
+     * @param enviroment the environment component
+     * @throws IOException when failing to create a temporary directory to download the required files
      */
-    public XWikiRepositorySystemSession(RepositorySystem repositorySystem)
+    public XWikiRepositorySystemSession(RepositorySystem repositorySystem, Environment enviroment) throws IOException
     {
         DefaultRepositorySystemSession wsession = MavenRepositorySystemUtils.newSession();
         this.session = wsession;
@@ -75,7 +103,9 @@ public class XWikiRepositorySystemSession extends AbstractForwardingRepositorySy
 
         // Local repository
 
-        File localDir = Files.createTempDir();
+        Path downloadDirectory = enviroment.getTemporaryDirectory().toPath().resolve("extension/download");
+        Files.createDirectories(downloadDirectory);
+        File localDir = Files.createTempDirectory(downloadDirectory, "repository").toFile();
         LocalRepository localRepository = new LocalRepository(localDir);
         wsession.setLocalRepositoryManager(repositorySystem.newLocalRepositoryManager(wsession, localRepository));
 
@@ -88,18 +118,24 @@ public class XWikiRepositorySystemSession extends AbstractForwardingRepositorySy
         wsession.setSystemProperty("groupId", null);
 
         // Add various type descriptors
-        ArtifactTypeRegistry artifactTypeRegistry = wsession.getArtifactTypeRegistry();
-        if (artifactTypeRegistry instanceof DefaultArtifactTypeRegistry) {
-            DefaultArtifactTypeRegistry defaultArtifactTypeRegistry =
-                (DefaultArtifactTypeRegistry) artifactTypeRegistry;
-            defaultArtifactTypeRegistry
-                .add(new DefaultArtifactType("bundle", MavenUtils.JAR_EXTENSION, "", MavenUtils.JAVA_LANGUAGE));
-            defaultArtifactTypeRegistry
-                .add(new DefaultArtifactType("eclipse-plugin", MavenUtils.JAR_EXTENSION, "", MavenUtils.JAVA_LANGUAGE));
-        }
+        addTypes(wsession);
 
         // Fail when the pom is missing or invalid
         wsession.setArtifactDescriptorPolicy(new SimpleArtifactDescriptorPolicy(false, false));
+    }
+
+    private void addTypes(RepositorySystemSession session)
+    {
+        // TODO: Find them in extensions registered in pom files
+        ArtifactTypeRegistry artifactTypeRegistry = session.getArtifactTypeRegistry();
+        if (artifactTypeRegistry instanceof DefaultArtifactTypeRegistry) {
+            DefaultArtifactTypeRegistry defaultArtifactTypeRegistry =
+                (DefaultArtifactTypeRegistry) artifactTypeRegistry;
+
+            TYPE_MAPPING.forEach((key, value) -> {
+                defaultArtifactTypeRegistry.add(value);
+            });
+        }
     }
 
     @Override

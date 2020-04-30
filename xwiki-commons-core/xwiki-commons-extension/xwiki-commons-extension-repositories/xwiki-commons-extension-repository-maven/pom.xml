@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-extension-repositories</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-extension-repository-maven</artifactId>
   <name>XWiki Commons - Extension - Repository - Maven</name>
@@ -33,9 +33,15 @@
   <description>Allows accessing extensions located in a Maven repository</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.68</xwiki.jacoco.instructionRatio>
-    <aether.version>1.1.0</aether.version>
+    <!-- TODO: put back 88% when issue
+         https://github.com/STAMP-project/pitest-descartes/issues/62#issuecomment-585119690 and
+         https://github.com/STAMP-project/pitest-descartes/issues/62#issuecomment-609408611 are fixed
+         -->
+    <xwiki.pitest.mutationThreshold>83</xwiki.pitest.mutationThreshold>
     <!-- Old names of this module used for retro compatibility when resolving dependencies of old extensions -->
-    <xwiki.extension.features>org.xwiki.platform:xwiki-platform-extension-repository-aether,org.xwiki.commons:xwiki-commons-extension-repository-maven</xwiki.extension.features>
+    <xwiki.extension.features>
+      org.xwiki.platform:xwiki-platform-extension-repository-aether,org.xwiki.commons:xwiki-commons-extension-repository-maven
+    </xwiki.extension.features>
     <!-- Name to display by the Extension Manager -->
     <xwiki.extension.name>Extension Repository Connector - Maven</xwiki.extension.name>
     <!-- TODO: Remove once the tests have been fixed to not output anything to the console! -->
@@ -57,40 +63,34 @@
       <artifactId>xwiki-commons-extension-maven</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Aether -->
+    <!-- Maven Resolver -->
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-api</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-util</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-util</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-impl</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-impl</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-connector-basic</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-connector-basic</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-transport-http</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-transport-http</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.aether</groupId>
-      <artifactId>aether-transport-file</artifactId>
-      <version>${aether.version}</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-transport-file</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
-      <artifactId>maven-aether-provider</artifactId>
+      <artifactId>maven-resolver-provider</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
@@ -103,15 +103,10 @@
     <!-- Explicitly depending on it since we've excluded the deprecated package above and we want
          the other dependencies that were working with jsr250-api to still work properly.  -->
     <dependency>
-      <groupId>javax.annotation</groupId>
-      <artifactId>javax.annotation-api</artifactId>
+      <groupId>jakarta.annotation</groupId>
+      <artifactId>jakarta.annotation-api</artifactId>
     </dependency>
-    <dependency>
-      <groupId>com.google.inject</groupId>
-      <artifactId>guice</artifactId>
-      <version>4.1.0</version>
-      <classifier>no_aop</classifier>
-    </dependency>
+
     <!-- Test dependencies -->
     <dependency>
       <groupId>org.xwiki.commons</groupId>
@@ -130,6 +125,14 @@
         <exclusion>
           <artifactId>log4j</artifactId>
           <groupId>log4j</groupId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.json</groupId>
+          <artifactId>json</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.google.guava</groupId>
+          <artifactId>guava</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

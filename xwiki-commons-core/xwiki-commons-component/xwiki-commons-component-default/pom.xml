@@ -25,14 +25,15 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-component</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-component-default</artifactId>
   <name>XWiki Commons - Component - Default Implementation</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - Component - Default Implementation</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.70</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.73</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>77</xwiki.pitest.mutationThreshold>
     <!-- Skipping revapi since xwiki-commons-legacy-component-default wraps this module and runs checks on it -->
     <xwiki.revapi.skip>true</xwiki.revapi.skip>
   </properties>
@@ -80,6 +81,11 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <!-- Add test source root for executing generated tests -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

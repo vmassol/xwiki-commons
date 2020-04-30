@@ -22,6 +22,8 @@ package org.xwiki.filter.input;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.commons.io.input.CloseShieldInputStream;
+
 /**
  * @version $Id$
  * @since 6.2M1
@@ -52,7 +54,7 @@ public class DefaultInputStreamInputSource implements InputStreamInputSource
     @Override
     public InputStream getInputStream()
     {
-        return this.inputStream;
+        return this.close ? this.inputStream : new CloseShieldInputStream(this.inputStream);
     }
 
     @Override

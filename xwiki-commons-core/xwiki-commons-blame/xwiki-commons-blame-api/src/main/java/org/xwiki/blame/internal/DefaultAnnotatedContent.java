@@ -23,6 +23,7 @@ package org.xwiki.blame.internal;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.xwiki.blame.AnnotatedContent;
 import org.xwiki.blame.AnnotatedElement;
@@ -51,9 +52,9 @@ public class DefaultAnnotatedContent<R, E> implements AnnotatedContent<R, E>
     DefaultAnnotatedContent(R revision, List<E> initialContent)
     {
         this.size = initialContent.size();
-        this.sourceRevisions = new ArrayList<R>(this.size);
+        this.sourceRevisions = new ArrayList<>(this.size);
         this.initialContent = initialContent;
-        this.currentRevisionContent = new ArrayList<E>(initialContent);
+        this.currentRevisionContent = new ArrayList<>(initialContent);
         this.currentRevision = revision;
         this.elementList = new ArrayList<>(this.size);
         for (int i = 0; i < size; i++) {
@@ -75,8 +76,12 @@ public class DefaultAnnotatedContent<R, E> implements AnnotatedContent<R, E>
         @Override
         public AnnotatedElement<R, E> next()
         {
+            if (!hasNext()) {
+                throw new NoSuchElementException("No more annotated content");
+            }
+
             index += 1;
-            return new DefaultAnnotatedElement<R, E>(sourceRevisions.get(index), initialContent.get(index));
+            return new DefaultAnnotatedElement<>(sourceRevisions.get(index), initialContent.get(index));
         }
 
         @Override

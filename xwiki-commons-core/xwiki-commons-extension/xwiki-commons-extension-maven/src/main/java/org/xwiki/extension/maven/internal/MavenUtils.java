@@ -26,7 +26,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Parent;
 import org.xwiki.extension.DefaultExtensionScmConnection;
+import org.xwiki.extension.ExtensionId;
 import org.xwiki.extension.ExtensionScmConnection;
+import org.xwiki.extension.version.Version;
+import org.xwiki.extension.version.internal.DefaultVersion;
 
 /**
  * Various Maven related helpers.
@@ -68,6 +71,13 @@ public class MavenUtils
     public static final String UNKNOWN = "unknown";
 
     /**
+     * The wildcard supported by Maven in places like {@code <exclusions>}.
+     * 
+     * @since 12.2
+     */
+    public static final String WILDCARD = "*";
+
+    /**
      * Parse a Maven scm URL to generate a {@link ExtensionScmConnection}.
      * 
      * @param connectionURL the connection URL
@@ -106,6 +116,40 @@ public class MavenUtils
     }
 
     /**
+     * Create a extension identifier from Maven artifact identifier elements.
+     * 
+     * @param groupId the group id
+     * @param artifactId the artifact id
+     * @param classifier the classifier
+     * @param version the version
+     * @return the extension identifier
+     * @since 10.9
+     * @since 10.8.1
+     */
+    public static ExtensionId toExtensionId(String groupId, String artifactId, String classifier, String version)
+    {
+        return toExtensionId(groupId, artifactId, classifier, version != null ? new DefaultVersion(version) : null);
+    }
+
+    /**
+     * Create a extension identifier from Maven artifact identifier elements.
+     * 
+     * @param groupId the group id
+     * @param artifactId the artifact id
+     * @param classifier the classifier
+     * @param version the version
+     * @return the extension identifier
+     * @since 10.9
+     * @since 10.8.1
+     */
+    public static ExtensionId toExtensionId(String groupId, String artifactId, String classifier, Version version)
+    {
+        String extensionId = toExtensionId(groupId, artifactId, classifier);
+
+        return new ExtensionId(extensionId, version);
+    }
+
+    /**
      * Get the extension type from maven packaging.
      *
      * @param packaging the maven packaging
@@ -116,6 +160,11 @@ public class MavenUtils
         // support bundle packaging
         if (packaging.equals("bundle")) {
             return "jar";
+        }
+
+        // pom packaging does not have any associated extension file
+        if (packaging.contentEquals("pom")) {
+            return null;
         }
 
         return packaging;
@@ -184,7 +233,7 @@ public class MavenUtils
     }
 
     /**
-     * @param modelVersion the current String representing the group id to resolve
+     * @param modelGroupId the current String representing the group id to resolve
      * @param mavenModel the Maven Model instance
      * @param dependency indicate if it's a dependency group id
      * @return the resolved group id

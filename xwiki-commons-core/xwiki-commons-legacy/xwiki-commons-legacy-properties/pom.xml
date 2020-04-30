@@ -25,14 +25,15 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-legacy</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-legacy-properties</artifactId>
-  <name>XWiki Commons - Properties</name>
+  <name>XWiki Commons - Legacy - Properties</name>
   <packaging>jar</packaging>
-  <description>XWiki Commons - Properties</description>
+  <description>XWiki Commons - Legacy - Properties</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.55</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>59</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>
@@ -52,7 +53,6 @@
       <artifactId>xwiki-commons-legacy-component-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-
     <!-- Tests dependencies -->
     <dependency>
       <groupId>org.xwiki.commons</groupId>

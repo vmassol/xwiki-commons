@@ -24,9 +24,10 @@ import java.io.File;
 import org.apache.maven.it.VerificationException;
 import org.apache.maven.it.Verifier;
 import org.codehaus.plexus.util.FileUtils;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Integration tests for the Format Mojo.
@@ -41,9 +42,9 @@ public class FormatMojoTest extends AbstractMojoTest
     {
         Verifier verifier = createVerifier("/format");
         verifier.addCliOption("-Dincludes=**/NoStyle/*.xml");
-        verifier.addCliOption("-Dpretty=false");
-        verifier.addCliOption("-DformatLicense=true");
-        verifier.addCliOption("-Dcommons.version=" + System.getProperty("commons.version"));
+        verifier.addCliOption("-Dxar.pretty=false");
+        verifier.addCliOption("-Dxar.formatLicense=true");
+        verifier.addCliOption("-Dxar.commons.version=" + System.getProperty("commons.version"));
         verifier.executeGoal("xar:format");
         verifier.verifyErrorFreeLog();
 
@@ -64,18 +65,20 @@ public class FormatMojoTest extends AbstractMojoTest
         expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedNoStylePage3.fr.xml"));
         assertEquals(expected, content);
 
+        // Test with document dates present
+        content = FileUtils.fileRead(new File(verifier.getBasedir(), "src/main/resources/NoStyle/Page4.xml"));
+        expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedNoStylePage4.xml"));
+        assertEquals(expected, content);
+
         // Test that technical pages are set as hidden
         content = FileUtils.fileRead(new File(verifier.getBasedir(), "src/main/resources/NoStyle/Translations.xml"));
         expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedNoStyleTranslations.xml"));
         assertEquals(expected, content);
 
         // Verify that not included pages are not formatted
-        try {
+        assertThrows(VerificationException.class, () -> {
             verifier.verifyTextInLog("Formatting [Pretty");
-            fail("Exception should have been thrown here");
-        } catch (VerificationException expectedException) {
-            // Passed!
-        }
+        });
     }
 
     @Test
@@ -83,7 +86,7 @@ public class FormatMojoTest extends AbstractMojoTest
     {
         Verifier verifier = createVerifier("/format");
         verifier.addCliOption("-Dincludes=**/Pretty/*.xml");
-
+        verifier.addCliOption("-Dxar.formatLicense=true");
         verifier.executeGoal("xar:format");
         verifier.verifyErrorFreeLog();
 
@@ -94,6 +97,16 @@ public class FormatMojoTest extends AbstractMojoTest
         // Test with a XML file having a license header
         content = FileUtils.fileRead(new File(verifier.getBasedir(), "src/main/resources/Pretty/Page2.xml"));
         expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedPrettyPage2.xml"));
+        assertEquals(expected, content);
+
+        // Test with document dates present
+        content = FileUtils.fileRead(new File(verifier.getBasedir(), "src/main/resources/Pretty/Page3.xml"));
+        expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedPrettyPage3.xml"));
+        assertEquals(expected, content);
+
+        // Verify the right version of XML is set for XAR 1.3
+        content = FileUtils.fileRead(new File(verifier.getBasedir(), "src/main/resources/Pretty/Page4.xml"));
+        expected = FileUtils.fileRead(new File(verifier.getBasedir(), "ExpectedPrettyPage4.xml"));
         assertEquals(expected, content);
     }
 }

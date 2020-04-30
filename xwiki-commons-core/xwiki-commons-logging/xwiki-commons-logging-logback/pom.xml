@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-logging</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-logging-logback</artifactId>
   <name>XWiki Commons - Logging - Logback</name>
@@ -33,17 +33,19 @@
   <description>XWiki Commons - Logging - Logback</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.93</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>94</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>
       <groupId>org.xwiki.commons</groupId>
-      <artifactId>xwiki-commons-logging-api</artifactId>
+      <artifactId>xwiki-commons-logging-common</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
     </dependency>
+
     <!-- Tests dependencies -->
     <dependency>
       <groupId>org.xwiki.commons</groupId>

@@ -27,6 +27,7 @@ import org.xwiki.job.Request;
 import org.xwiki.logging.LogLevel;
 import org.xwiki.logging.LogQueue;
 import org.xwiki.logging.event.LogEvent;
+import org.xwiki.logging.tail.LogTail;
 
 /**
  * Describe the current status of a job.
@@ -93,9 +94,13 @@ public interface JobStatus
     Request getRequest();
 
     /**
-     * @return the log sent during job execution
+     * @return the log tail
+     * @since 11.9RC1
      */
-    LogQueue getLog();
+    default LogTail getLogTail()
+    {
+        return getLog();
+    }
 
     /**
      * @return progress information about the job (percent, etc.)
@@ -127,6 +132,16 @@ public interface JobStatus
     }
 
     /**
+     * @param unit the time unit of the returned value
+     * @return the time left before the question timeout
+     * @since 10.2
+     */
+    default long getQuestionTimeLeft(TimeUnit unit)
+    {
+        return -1;
+    }
+
+    /**
      * @return the question
      * @since 4.0M2
      */
@@ -149,7 +164,32 @@ public interface JobStatus
      */
     Date getEndDate();
 
+    /**
+     * @return true if the job status should be serialized
+     * @since 10.0
+     */
+    default boolean isSerialized()
+    {
+        return true;
+    }
+
+    /**
+     * @return true if the log should be isolated from standard output
+     * @since 10.0
+     */
+    default boolean isIsolated()
+    {
+        return true;
+    }
+
     // Deprecated
+
+    /**
+     * @return the log sent during job execution
+     * @deprecated since 11.9RC1, use {@link #getLogTail()} instead
+     */
+    @Deprecated
+    LogQueue getLog();
 
     /**
      * @param level the level of the log

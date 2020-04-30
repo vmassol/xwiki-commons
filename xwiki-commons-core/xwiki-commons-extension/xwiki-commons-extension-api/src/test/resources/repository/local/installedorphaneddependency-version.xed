@@ -26,6 +26,12 @@
   <id>installedorphaneddependency</id>
   <version>version</version>
   <type>test</type>
+  <dependencies>
+    <dependency>
+      <id>installedorphaneddependencyd</id>
+      <version>version</version>
+    </dependency>
+  </dependencies>
   <properties>
     <installed.installed type="boolean">true</installed.installed>
     <installed.dependency type="boolean">true</installed.dependency>

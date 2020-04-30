@@ -25,17 +25,19 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-core</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-xml</artifactId>
   <name>XWiki Commons - XML</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - XML</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.51</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.65</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>65</xwiki.pitest.mutationThreshold>
     <!-- There's a utility class with lots of features, allow it to have many dependencies;
          There's a SAX event listener, which requires complex code -->
-    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml</checkstyle.suppressions.location>
+    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml
+    </checkstyle.suppressions.location>
   </properties>
   <dependencies>
     <dependency>
@@ -57,9 +59,13 @@
       <artifactId>commons-lang3</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-text</artifactId>
+    </dependency>
+    <dependency>
       <groupId>net.sourceforge.htmlcleaner</groupId>
       <artifactId>htmlcleaner</artifactId>
-      <version>2.16</version>
+      <version>2.23</version>
     </dependency>
     <dependency>
       <groupId>xerces</groupId>
@@ -73,7 +79,6 @@
       <groupId>com.fasterxml.woodstox</groupId>
       <artifactId>woodstox-core</artifactId>
     </dependency>
-
     <!-- Testing dependencies -->
     <dependency>
       <groupId>org.xwiki.commons</groupId>

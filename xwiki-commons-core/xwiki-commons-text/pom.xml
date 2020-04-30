@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-core</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-text</artifactId>
   <name>XWiki Commons - Text</name>
@@ -33,6 +33,7 @@
   <description>Offers text-related APIs</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.94</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>100</xwiki.pitest.mutationThreshold>
     <!-- Name to display by the Extension Manager -->
     <xwiki.extension.name>Text API</xwiki.extension.name>
   </properties>
@@ -40,6 +41,11 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-stability</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <!-- Testing dependencies -->
     <dependency>

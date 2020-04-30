@@ -25,14 +25,16 @@ import org.xwiki.cache.infinispan.internal.InfinispanConfigurationLoader;
 import org.xwiki.cache.internal.DefaultCacheFactory;
 import org.xwiki.cache.internal.DefaultCacheManager;
 import org.xwiki.cache.internal.DefaultCacheManagerConfiguration;
-import org.xwiki.cache.tests.AbstractEvictionGenericTestCache;
+import org.xwiki.cache.test.AbstractEvictionGenericTestCache;
 import org.xwiki.test.annotation.ComponentList;
+import org.xwiki.test.junit5.mockito.ComponentTest;
 
 /**
  * Unit tests for {@link org.xwiki.cache.infinispan.internal.InfinispanCache}.
  *
  * @version $Id$
  */
+@ComponentTest
 @ComponentList({
     InfinispanCacheFactory.class,
     DefaultCacheManager.class,

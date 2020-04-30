@@ -19,14 +19,20 @@
  */
 package org.xwiki.tool.xar;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.*;
+import org.apache.commons.io.IOUtils;
+import org.dom4j.Document;
+import org.dom4j.io.OutputFormat;
+import org.dom4j.io.SAXReader;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Unit tests for {@link org.xwiki.tool.xar.FormatMojo}.
@@ -42,12 +48,38 @@ public class FormatMojoTest
         FormatMojo mojo = new FormatMojo();
         mojo.defaultLanguage = "en";
 
-        File file = new File("Document.xml");
+        File file = new File("Some/Space/Document.xml");
         List<File> files = Arrays.asList(
-            new File("Document.xml"),
-            new File("Document.fr.xml"));
+            new File("Some/Space/Document.xml"),
+            new File("Some/Space/Document.fr.xml"));
 
         assertEquals("en", mojo.guessDefaultLanguage(file, files));
+    }
+
+    @Test
+    public void defaultLanguageForNonMatchingContentPage()
+    {
+        FormatMojo mojo = new FormatMojo();
+        mojo.defaultLanguage = "en";
+        mojo.contentPages = Arrays.asList("Document\\.xml");
+        mojo.initializePatterns();
+
+        File file = new File("Some/Space/Document.xml");
+
+        assertEquals("", mojo.guessDefaultLanguage(file, Collections.EMPTY_LIST));
+    }
+
+    @Test
+    public void defaultLanguageForMatchingContentPage()
+    {
+        FormatMojo mojo = new FormatMojo();
+        mojo.defaultLanguage = "en";
+        mojo.contentPages = Arrays.asList(".*/Document\\.xml");
+        mojo.initializePatterns();
+
+        File file = new File("Some/Space/Document.xml");
+
+        assertEquals("en", mojo.guessDefaultLanguage(file, Collections.EMPTY_LIST));
     }
 
     @Test
@@ -56,7 +88,7 @@ public class FormatMojoTest
         FormatMojo mojo = new FormatMojo();
         mojo.defaultLanguage = "en";
 
-        File file = new File("Document.fr.xml");
+        File file = new File("Some/Space/Document.fr.xml");
         List<File> files = Collections.EMPTY_LIST;
 
         assertEquals("en", mojo.guessDefaultLanguage(file, files));
@@ -68,9 +100,52 @@ public class FormatMojoTest
         FormatMojo mojo = new FormatMojo();
         mojo.defaultLanguage = "en";
 
-        File file = new File("Document.xml");
-        List<File> files = Arrays.asList(new File("Other.xml"));
+        File file = new File("Some/Space/Document.xml");
+        List<File> files = Arrays.asList(new File("Some/OtherSpace/Other.xml"));
 
         assertEquals("", mojo.guessDefaultLanguage(file, files));
+    }
+
+    /**
+     * Reproduces issues raised in <a href="https://jira.xwiki.org/browse/XCOMMONS-1833">XCOMMONS-1833</a>.
+     */
+    @Test
+    public void defaultLanguageForDocumentWhenNoTranslationButFileWithSameNameInOtherSpace()
+    {
+        FormatMojo mojo = new FormatMojo();
+        mojo.defaultLanguage = "en";
+
+        File file = new File("Space1/Document.xml");
+        // Simulate a page with the same name and with a translation but in a different space.
+        List<File> files = Arrays.asList(
+            new File("Space2/Document.xml"),
+            new File("Space2/Document.fr.xml"));
+
+        assertEquals("", mojo.guessDefaultLanguage(file, files));
+    }
+
+    /**
+     * Reproduces issue raised in <a href="https://jira.xwiki.org/browse/XCOMMONS-1373">XCOMMONS-1373</a>.
+     */
+    @Test
+    public void formatSpecialContentFailingWithXercesFromJDK8() throws Exception
+    {
+        SAXReader reader = new SAXReader();
+        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream("XWikiSyntaxLinks.it.xml");
+        String expectedContent = IOUtils.toString(is, "UTF-8");
+
+        is = Thread.currentThread().getContextClassLoader().getResourceAsStream("XWikiSyntaxLinks.it.xml");
+        Document domdoc = reader.read(is);
+
+        XWikiXMLWriter writer;
+        OutputFormat format = new OutputFormat("  ", true, "UTF-8");
+        format.setExpandEmptyElements(false);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        writer = new XWikiXMLWriter(baos, format);
+        writer.setVersion("1.1");
+        writer.write(domdoc);
+        writer.close();
+
+        assertEquals(expectedContent, baos.toString());
     }
 }

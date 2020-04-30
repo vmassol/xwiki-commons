@@ -52,7 +52,7 @@ public abstract class AbstractExtensionHandler implements ExtensionHandler
     protected Logger logger;
 
     /**
-     * Used to check if an extension it is possible to install/uninstall a given extension.
+     * Used to check if it is possible to install/uninstall a given extension.
      */
     @Inject
     private Provider<ExtensionValidator> defaultValidatorProvider;

@@ -25,16 +25,18 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-filter</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-filter-xml</artifactId>
   <name>XWiki Commons - Filter - XML</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - Filter - XML</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.56</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>57</xwiki.pitest.mutationThreshold>
     <!-- Working with XStream requires a lot of classes, relax the coupling requirements -->
-    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml</checkstyle.suppressions.location>
+    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml
+    </checkstyle.suppressions.location>
   </properties>
   <dependencies>
     <dependency>

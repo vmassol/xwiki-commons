@@ -25,19 +25,25 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-logging</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-logging-api</artifactId>
   <name>XWiki Commons - Logging - API</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - Logging - API</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.75</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.76</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>82</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>
       <groupId>org.xwiki.commons</groupId>
       <artifactId>xwiki-commons-observation-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-configuration-api</artifactId>
       <version>${project.version}</version>
     </dependency>
   </dependencies>

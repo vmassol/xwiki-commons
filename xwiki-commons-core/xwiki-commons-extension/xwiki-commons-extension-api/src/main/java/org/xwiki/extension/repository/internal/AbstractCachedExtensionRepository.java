@@ -55,14 +55,14 @@ public abstract class AbstractCachedExtensionRepository<E extends Extension> ext
     /**
      * The cached extensions.
      */
-    protected transient Map<ExtensionId, E> extensions = new ConcurrentHashMap<ExtensionId, E>();
+    protected transient Map<ExtensionId, E> extensions = new ConcurrentHashMap<>();
 
     /**
      * The cached extensions grouped by ids and ordered by version DESC.
      * <p>
      * <extension id, extensions>
      */
-    protected Map<String, List<E>> extensionsVersions = new ConcurrentHashMap<String, List<E>>();
+    protected Map<String, List<E>> extensionsVersions = new ConcurrentHashMap<>();
 
     /**
      * Indicate features should be used map key at the same levels than the actual ids.
@@ -124,7 +124,7 @@ public abstract class AbstractCachedExtensionRepository<E extends Extension> ext
         List<E> versions = this.extensionsVersions.get(feature);
 
         if (versions == null) {
-            versions = new ArrayList<E>();
+            versions = new ArrayList<>();
             this.extensionsVersions.put(feature, versions);
 
             versions.add(extension);
@@ -215,30 +215,25 @@ public abstract class AbstractCachedExtensionRepository<E extends Extension> ext
     public IterableResult<Version> resolveVersions(String id, int offset, int nb) throws ResolveException
     {
         if (id == null) {
-            return new CollectionIterableResult<Version>(0, offset, Collections.<Version>emptyList());
+            return new CollectionIterableResult<>(0, offset, Collections.<Version>emptyList());
         }
 
-        List<E> versions = this.extensionsVersions.get(id);
+        List<E> extensionVersions = this.extensionsVersions.get(id);
 
-        if (versions == null) {
+        if (extensionVersions == null) {
             throw new ExtensionNotFoundException("Can't find extension with id [" + id + "]");
         }
 
-        if (nb == 0 || offset >= versions.size()) {
-            return new CollectionIterableResult<Version>(versions.size(), offset, Collections.<Version>emptyList());
+        if (nb == 0 || offset >= extensionVersions.size()) {
+            return new CollectionIterableResult<>(extensionVersions.size(), offset, Collections.<Version>emptyList());
         }
 
-        int fromId = offset < 0 ? 0 : offset;
-        int toId = offset + nb > versions.size() || nb < 0 ? versions.size() - 1 : offset + nb;
-
-        List<Version> result = new ArrayList<Version>(toId - fromId);
-
-        // Invert to sort in ascendent order
-        for (int i = toId - 1; i >= fromId; --i) {
-            result.add(versions.get(i).getId().getVersion());
+        List<Version> versions = new ArrayList<>(extensionVersions.size());
+        for (E extension : extensionVersions) {
+            versions.add(extension.getId().getVersion());
         }
 
-        return new CollectionIterableResult<Version>(versions.size(), offset, result);
+        return RepositoryUtils.getIterableResult(offset, nb, versions);
     }
 
     // Searchable
@@ -259,8 +254,8 @@ public abstract class AbstractCachedExtensionRepository<E extends Extension> ext
     {
         Pattern patternMatcher = RepositoryUtils.createPatternMatcher(query.getQuery());
 
-        Set<Extension> set = new HashSet<Extension>();
-        List<Extension> result = new ArrayList<Extension>(this.extensionsVersions.size());
+        Set<Extension> set = new HashSet<>();
+        List<Extension> result = new ArrayList<>(this.extensionsVersions.size());
 
         for (List<E> versions : this.extensionsVersions.values()) {
             E extension = versions.get(0);

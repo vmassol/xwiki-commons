@@ -25,14 +25,15 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-core</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-job</artifactId>
   <name>XWiki Commons - Job</name>
   <packaging>jar</packaging>
   <description>XWiki Commons - Job</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.53</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.58</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>57</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>
@@ -47,7 +48,7 @@
     </dependency>
     <dependency>
       <groupId>org.xwiki.commons</groupId>
-      <artifactId>xwiki-commons-logging-api</artifactId>
+      <artifactId>xwiki-commons-logging-common</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -63,6 +64,11 @@
     <dependency>
       <groupId>org.xwiki.commons</groupId>
       <artifactId>xwiki-commons-context</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.xwiki.commons</groupId>
+      <artifactId>xwiki-commons-xstream</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

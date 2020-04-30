@@ -19,30 +19,33 @@
  */
 package org.xwiki.velocity.internal;
 
+import java.util.List;
 import java.util.Properties;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.velocity.tools.generic.ListTool;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.tools.generic.LogTool;
 import org.apache.velocity.tools.generic.MathTool;
 import org.apache.velocity.tools.generic.NumberTool;
-import org.apache.velocity.tools.generic.SortTool;
+import org.apache.velocity.util.introspection.DeprecatedCheckUberspector;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.component.phase.InitializationException;
 import org.xwiki.configuration.ConfigurationSource;
+import org.xwiki.logging.LoggerConfiguration;
 import org.xwiki.text.StringUtils;
 import org.xwiki.velocity.VelocityConfiguration;
 import org.xwiki.velocity.internal.util.RestrictParseLocationEventHandler;
-import org.xwiki.velocity.introspection.DeprecatedCheckUberspector;
 import org.xwiki.velocity.introspection.MethodArgumentsUberspector;
 import org.xwiki.velocity.introspection.SecureUberspector;
-import org.xwiki.velocity.tools.CollectionsTool;
+import org.xwiki.velocity.tools.CollectionTool;
 import org.xwiki.velocity.tools.ComparisonDateTool;
 import org.xwiki.velocity.tools.EscapeTool;
 import org.xwiki.velocity.tools.JSONTool;
+import org.xwiki.velocity.tools.ObjectTool;
 import org.xwiki.velocity.tools.RegexTool;
 import org.xwiki.velocity.tools.URLTool;
 import org.xwiki.velocity.tools.nio.NIOTool;
@@ -63,55 +66,101 @@ public class DefaultVelocityConfiguration implements Initializable, VelocityConf
     private static final String PREFIX = "velocity.";
 
     /**
-     * Default Tools.
+     * Used to find out if deprecated log is enabled by default.
      */
-    protected Properties defaultTools = new Properties();
+    @Inject
+    protected LoggerConfiguration loggerConfiguration;
 
     /**
      * Defines from where to read the rendering configuration data.
      */
     @Inject
-    private ConfigurationSource configuration;
+    protected ConfigurationSource configuration;
+
+    @Inject
+    protected List<DefaultToolsInitializer> toolsInitializers;
+
+    /**
+     * Default Tools.
+     */
+    protected Properties defaultTools = new Properties();
 
     /**
      * Default properties.
      */
-    private Properties defaultProperties = new Properties();
+    protected Properties defaultProperties = new Properties();
 
     @Override
     public void initialize() throws InitializationException
     {
         // Default Velocity tools.
-        this.defaultTools.setProperty("listtool", ListTool.class.getName());
         this.defaultTools.setProperty("numbertool", NumberTool.class.getName());
         this.defaultTools.setProperty("datetool", ComparisonDateTool.class.getName());
         this.defaultTools.setProperty("mathtool", MathTool.class.getName());
-        this.defaultTools.setProperty("sorttool", SortTool.class.getName());
         this.defaultTools.setProperty("escapetool", EscapeTool.class.getName());
         this.defaultTools.setProperty("regextool", RegexTool.class.getName());
-        this.defaultTools.setProperty("collectionstool", CollectionsTool.class.getName());
+        this.defaultTools.setProperty("collectiontool", CollectionTool.class.getName());
         this.defaultTools.setProperty("stringtool", StringUtils.class.getName());
         this.defaultTools.setProperty("jsontool", JSONTool.class.getName());
         this.defaultTools.setProperty("urltool", URLTool.class.getName());
         this.defaultTools.setProperty("exceptiontool", ExceptionUtils.class.getName());
         this.defaultTools.setProperty("niotool", NIOTool.class.getName());
+        this.defaultTools.setProperty("logtool", LogTool.class.getName());
+        this.defaultTools.setProperty("objecttool", ObjectTool.class.getName());
+
+        // Extension point to inject other default tools
+        this.toolsInitializers.forEach(l -> l.initialize(this.defaultTools));
 
         // Default Velocity properties
-        this.defaultProperties.setProperty("directive.set.null.allowed", Boolean.TRUE.toString());
-        this.defaultProperties.setProperty("velocimacro.messages.on", Boolean.FALSE.toString());
-        this.defaultProperties.setProperty("velocimacro.max.depth", "100");
-        this.defaultProperties.setProperty("resource.manager.logwhenfound", Boolean.FALSE.toString());
-        this.defaultProperties.setProperty("velocimacro.permissions.allow.inline.local.scope", Boolean.TRUE.toString());
-        // Prevents users from calling #parse on files outside the /templates/ directory
-        this.defaultProperties.setProperty("eventhandler.include.class",
-            RestrictParseLocationEventHandler.class.getName());
-        // Prevents users from writing dangerous Velocity code like using Class.forName or Java threading APIs.
-        this.defaultProperties.setProperty("runtime.introspector.uberspect", StringUtils.join(
-            new String[] { SecureUberspector.class.getName(), DeprecatedCheckUberspector.class.getName(),
-                MethodArgumentsUberspector.class.getName() }, ','));
+        this.defaultProperties.setProperty(RuntimeConstants.VM_MAX_DEPTH, "100");
+        this.defaultProperties.setProperty(RuntimeConstants.RESOURCE_MANAGER_LOGWHENFOUND, Boolean.FALSE.toString());
+        this.defaultProperties.setProperty(RuntimeConstants.VM_PERM_INLINE_LOCAL, Boolean.TRUE.toString());
+        // Allow to override global macros and to use properly skin macros.
+        this.defaultProperties.setProperty(RuntimeConstants.VM_PERM_ALLOW_INLINE_REPLACE_GLOBAL,
+            Boolean.TRUE.toString());
+
+        // [Retro compatibility]
+        // * Make empty string #if evaluate to true
+        this.defaultProperties.setProperty(RuntimeConstants.CHECK_EMPTY_OBJECTS, Boolean.FALSE.toString());
+        // * Use Velocity 1.x Space Gobbling
+        this.defaultProperties.setProperty(RuntimeConstants.SPACE_GOBBLING, "bc");
+        // * Allow "-" in variables names
+        this.defaultProperties.setProperty(RuntimeConstants.PARSER_HYPHEN_ALLOWED, Boolean.TRUE.toString());
+        // * Keep original variable name when passing null parameter
+        // * Use global context as default value for missing macro parameters
+        this.defaultProperties.setProperty(RuntimeConstants.VM_ENABLE_BC_MODE, Boolean.TRUE.toString());
+
         // Enable the extra scope variables $template and $macro, similar to $foreach
-        this.defaultProperties.setProperty("template.provide.scope.control", Boolean.TRUE.toString());
-        this.defaultProperties.setProperty("macro.provide.scope.control", Boolean.TRUE.toString());
+        this.defaultProperties.setProperty(RuntimeConstants.CONTEXT_SCOPE_CONTROL + ".template",
+            Boolean.TRUE.toString());
+        this.defaultProperties.setProperty(RuntimeConstants.CONTEXT_SCOPE_CONTROL + ".macro", Boolean.TRUE.toString());
+
+        // Prevents users from calling #parse on files outside the /templates/ directory
+        this.defaultProperties.setProperty(RuntimeConstants.EVENTHANDLER_INCLUDE,
+            RestrictParseLocationEventHandler.class.getName());
+
+        // The uberspectors enabled by default
+        initializeDefaultUberspectors();
+    }
+
+    private void initializeDefaultUberspectors()
+    {
+        StringBuilder unberspectors = new StringBuilder();
+
+        // Block access to dangerous APIs
+        unberspectors.append(SecureUberspector.class.getName());
+
+        // Warning logs when using deprecated APIs
+        if (this.loggerConfiguration.isDeprecatedLogEnabled()) {
+            unberspectors.append(',');
+            unberspectors.append(DeprecatedCheckUberspector.class.getName());
+        }
+
+        // Auto conversion of method parameters
+        unberspectors.append(',');
+        unberspectors.append(MethodArgumentsUberspector.class.getName());
+
+        this.defaultProperties.setProperty(RuntimeConstants.UBERSPECT_CLASSNAME, unberspectors.toString());
     }
 
     @Override
@@ -120,7 +169,12 @@ public class DefaultVelocityConfiguration implements Initializable, VelocityConf
         // Merge default properties and properties defined in the configuration
         Properties props = new Properties();
         props.putAll(this.defaultProperties);
-        props.putAll(this.configuration.getProperty(PREFIX + "properties", Properties.class));
+
+        Properties configuredProperties = this.configuration.getProperty(PREFIX + "properties", Properties.class);
+        if (configuredProperties != null) {
+            props.putAll(configuredProperties);
+        }
+
         return props;
     }
 
@@ -130,7 +184,12 @@ public class DefaultVelocityConfiguration implements Initializable, VelocityConf
         // Merge default tools and tools defined in the configuration
         Properties props = new Properties();
         props.putAll(this.defaultTools);
-        props.putAll(this.configuration.getProperty(PREFIX + "tools", Properties.class));
+
+        Properties configuredTools = this.configuration.getProperty(PREFIX + "tools", Properties.class);
+        if (configuredTools != null) {
+            props.putAll(configuredTools);
+        }
+
         return props;
     }
 }

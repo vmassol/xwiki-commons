@@ -25,12 +25,17 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.util.Base64;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -52,7 +57,7 @@ import org.xwiki.tool.xar.internal.XWikiDocument;
 /**
  * Gather all resources in a XAR file (which is actually a ZIP file). Also generates a XAR descriptor if none is
  * provided.
- * 
+ *
  * @version $Id$
  */
 @Mojo(name = "xar", defaultPhase = LifecyclePhase.PACKAGE, requiresDependencyResolution = ResolutionScope.COMPILE, threadSafe = true)
@@ -61,7 +66,7 @@ public class XARMojo extends AbstractXARMojo
     /**
      * Indicate if XAR dependencies should be included in the produced XAR package.
      */
-    @Parameter(property = "includeDependencies", defaultValue = "false")
+    @Parameter(property = "xar.includeDependencies", defaultValue = "false")
     private boolean includeDependencies;
 
     /**
@@ -73,7 +78,7 @@ public class XARMojo extends AbstractXARMojo
     @Override
     public void execute() throws MojoExecutionException
     {
-        if (this.project.getResources().size() < 1) {
+        if (this.project.getResources().isEmpty()) {
             getLog().warn("No XAR created as no resources were found");
             return;
         }
@@ -87,7 +92,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Create the XAR by zipping the resource files.
-     * 
+     *
      * @throws Exception if the zipping failed for some reason
      */
     private void performArchive() throws Exception
@@ -185,14 +190,14 @@ public class XARMojo extends AbstractXARMojo
                     node.setText(value.replace("$1", currentValue));
                 } else if (transformation.getAction() != null) {
                     // Parse xml value
-                    Document xmlDocument;
-                    Element xmlElement;
+                    Document xmlDocument = null;
+                    Element xmlElement = null;
+                    File content = null;
                     if (transformation.getXml() != null) {
                         xmlDocument = reader.read(transformation.getXml());
                         xmlElement = xmlDocument.getRootElement();
-                    } else {
-                        xmlDocument = null;
-                        xmlElement = null;
+                    } else if (transformation.getContent() != null) {
+                        content = transformation.getContent();
                     }
 
                     // Apply action
@@ -213,6 +218,21 @@ public class XARMojo extends AbstractXARMojo
                             }
                             break;
 
+                        case INSERT_ATTACHMENT_CONTENT:
+                            if(content != null) {
+                                node.selectSingleNode("filesize").setText(Long.toString(content.length(),10));
+                                node.selectSingleNode("content").setText( "\r\n" +
+                                    new String(
+                                        Base64.getMimeEncoder().encode(FileUtils.readFileToByteArray(content))) + "\r\n");
+                            }
+                            break;
+
+                        case INSERT_TEXT:
+                            if( content != null) {
+                                node.setText(FileUtils.readFileToString(content, Charset.forName(transformation.getCharset())));
+                            }
+                            break;
+
                         case REMOVE:
                             // Replace the node
                             node.getParent().remove(node);
@@ -225,9 +245,12 @@ public class XARMojo extends AbstractXARMojo
 
                 // Write the modified file to disk
                 XMLWriter writer = new XMLWriter(new FileOutputStream(file));
-                writer.write(document);
-                writer.flush();
-                writer.close();
+                try {
+                    writer.write(document);
+                    writer.flush();
+                } finally {
+                    writer.close();
+                }
             } else {
                 getLog().warn("Can't find any node matching the xpath [" + transformation.getXpath() + "]");
             }
@@ -240,13 +263,11 @@ public class XARMojo extends AbstractXARMojo
             Set<Artifact> artifacts = this.project.getArtifacts();
             if (artifacts != null) {
                 for (Artifact artifact : artifacts) {
-                    if (!artifact.isOptional()) {
-                        if ("xar".equals(artifact.getType())) {
-                            String id = String.format("%s:%s", artifact.getGroupId(), artifact.getArtifactId());
-                            if (id.equals(transformation.getArtifact())) {
-                                unpackXARToOutputDirectory(artifact, new String[] {transformation.getFile()},
-                                    new String[] {});
-                            }
+                    if (!artifact.isOptional() && "xar".equals(artifact.getType())) {
+                        String id = String.format("%s:%s", artifact.getGroupId(), artifact.getArtifactId());
+                        if (id.equals(transformation.getArtifact())) {
+                            unpackXARToOutputDirectory(artifact, new String[] { transformation.getFile() },
+                                new String[] {});
                         }
                     }
                 }
@@ -256,7 +277,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Unpack XAR dependencies before pack then into it.
-     * 
+     *
      * @throws MojoExecutionException error when unpack dependencies.
      */
     private void unpackDependentXARs() throws MojoExecutionException
@@ -264,10 +285,8 @@ public class XARMojo extends AbstractXARMojo
         Set<Artifact> artifacts = this.project.getArtifacts();
         if (artifacts != null) {
             for (Artifact artifact : artifacts) {
-                if (!artifact.isOptional()) {
-                    if ("xar".equals(artifact.getType())) {
-                        unpackXARToOutputDirectory(artifact, getIncludes(), getExcludes());
-                    }
+                if (!artifact.isOptional() && "xar".equals(artifact.getType())) {
+                    unpackXARToOutputDirectory(artifact, getIncludes(), getExcludes());
                 }
             }
         }
@@ -275,7 +294,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Create and add package configuration file to the package.
-     * 
+     *
      * @param packageFile the package when to add configuration file.
      * @param files the files in the package.
      * @throws Exception error when writing the configuration file.
@@ -295,7 +314,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Generate a DOM4J Document containing the generated XML.
-     * 
+     *
      * @param files the list of files that we want to include in the generated package XML file.
      * @return the DOM4J Document containing the generated XML
      */
@@ -320,7 +339,7 @@ public class XARMojo extends AbstractXARMojo
     /**
      * Add all the XML elements under the &lt;info&gt; element (name, description, license, author, version and whether
      * it's a backup pack or not).
-     * 
+     *
      * @param infoElement the info element to which to add to
      */
     private void addInfoElements(Element infoElement)
@@ -361,7 +380,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Add all the XML elements under the &lt;files&gt; element (the list of files present in the XAR).
-     * 
+     *
      * @param files the list of files that we want to include in the generated package XML file.
      * @param filesElement the files element to which to add to
      */
@@ -376,26 +395,42 @@ public class XARMojo extends AbstractXARMojo
                 element.setText(reference);
                 element.addAttribute("language", xdoc.getLocale());
                 element.addAttribute("defaultAction", "0");
+
+                // Add configured properties
+                XAREntry cfgEntry = getEntryMap().get(reference);
+                if (cfgEntry != null && cfgEntry.getType() != null) {
+                    element.addAttribute("type", cfgEntry.getType());
+                }
+
                 filesElement.add(element);
             }
         }
     }
 
     /**
-     * Gets the list of document names from a 'package.xml'-like document.
-     * 
+     * Gets the list of entry from a 'package.xml'-like document.
+     *
      * @param file the XML document to parse
-     * @return the list of document names contained in the XML document
+     * @return the Map of entries contained in the XML document (ordered in the same order as the file)
      * @throws Exception if the XML document is invalid or it contains no document list or it doesn't exist
+     * @since 10.3
      */
-    protected static Collection<String> getDocumentNamesFromXML(File file) throws Exception
+    protected static Map<String, XAREntry> getXarEntriesMapFromXML(File file) throws Exception
     {
         try (FileInputStream stream = new FileInputStream(file)) {
-            return getDocumentNamesFromXML(stream);
+            return getXarEntriesMapFromXML(stream);
         }
     }
 
-    public static Collection<String> getDocumentNamesFromXML(InputStream stream) throws Exception
+    /**
+     * Gets the list of entry from a 'package.xml'-like document.
+     *
+     * @param stream the XML document to parse
+     * @return the Map of entries contained in the XML document (ordered in the same order as the file)
+     * @throws Exception if the XML document is invalid or it contains no document list or it doesn't exist
+     * @since 10.3
+     */
+    public static Map<String, XAREntry> getXarEntriesMapFromXML(InputStream stream) throws Exception
     {
         SAXReader reader = new SAXReader();
         Document domdoc;
@@ -407,13 +442,17 @@ public class XARMojo extends AbstractXARMojo
             throw new Exception("The supplied document contains no document list ");
         }
 
-        Collection<String> result = new LinkedList<>();
+        Map<String, XAREntry> result = new LinkedHashMap<>();
         Collection elements = filesElement.elements(FILE_TAG);
         for (Object item : elements) {
             if (item instanceof Element) {
                 Element currentElement = (Element) item;
-                String documentName = currentElement.getText();
-                result.add(documentName);
+
+                XAREntry entry = new XAREntry();
+                entry.setDocument(currentElement.getText());
+                entry.setType(currentElement.attributeValue("type"));
+
+                result.put(entry.getDocument(), entry);
             }
         }
 
@@ -421,9 +460,26 @@ public class XARMojo extends AbstractXARMojo
     }
 
     /**
+     * Gets the list of document names from a 'package.xml'-like document.
+     *
+     * @param file the XML document to parse
+     * @return the list of document names contained in the XML document
+     * @throws Exception if the XML document is invalid or it contains no document list or it doesn't exist
+     */
+    protected static Collection<String> getDocumentNamesFromXML(File file) throws Exception
+    {
+        return getXarEntriesMapFromXML(file).keySet();
+    }
+
+    public static Collection<String> getDocumentNamesFromXML(InputStream stream) throws Exception
+    {
+        return getXarEntriesMapFromXML(stream).keySet();
+    }
+
+    /**
      * Adds the files from a specific directory to an archive. It also builds a package.xml file based on that content
      * which is also added to the archive.
-     * 
+     *
      * @param archiver the archive in which the files will be added
      * @param sourceDir the directory whose contents will be added to the archive
      * @throws Exception if the files cannot be added to the archive
@@ -443,7 +499,7 @@ public class XARMojo extends AbstractXARMojo
     /**
      * Adds files from a specific directory to an archive. It uses an existing package.xml to filter the files to be
      * added.
-     * 
+     *
      * @param archiver the archive in which the files will be added
      * @param sourceDir the directory whose contents will be added to the archive
      * @param packageXml the corresponding package.xml file
@@ -462,7 +518,7 @@ public class XARMojo extends AbstractXARMojo
 
         // Next, we scan the hole directory and subdirectories for documents.
 
-        Queue<File> fileQueue = new LinkedList<File>();
+        Queue<File> fileQueue = new LinkedList<>();
         addContentsToQueue(fileQueue, sourceDir);
         while (!fileQueue.isEmpty() && !documentNames.isEmpty()) {
             File currentFile = fileQueue.poll();
@@ -475,8 +531,8 @@ public class XARMojo extends AbstractXARMojo
                     //
                     // Note: DO NOT USE String.split since it requires a regexp. Under Windows XP, the FileSeparator is
                     // '\' when not escaped is a special character of the regexp
-                    // String archivedFilePath =
-                    // currentFile.getAbsolutePath().split(sourceDir.getAbsolutePath() + File.separator)[1];
+                    //   String archivedFilePath =
+                    //   currentFile.getAbsolutePath().split(sourceDir.getAbsolutePath() + File.separator)[1];
                     String archivedFilePath = currentFile.getAbsolutePath()
                         .substring((sourceDir.getAbsolutePath() + File.separator).length());
                     archivedFilePath = archivedFilePath.replace(File.separatorChar, '/');
@@ -501,7 +557,7 @@ public class XARMojo extends AbstractXARMojo
 
     /**
      * Adds the contents of a specific directory to a queue of files.
-     * 
+     *
      * @param fileQueue the queue of files
      * @param sourceDir the directory to be scanned
      */

@@ -25,16 +25,18 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-tool-test</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-tool-test-simple</artifactId>
   <name>XWiki Commons - Tools - Test Framework - Simple</name>
   <packaging>jar</packaging>
   <description>For tests not requiring notion of Components</description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.43</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>56</xwiki.pitest.mutationThreshold>
     <!-- Allow throwing 'Throwable', since throwing Throwable is part of the JUnit method signature that we implement! -->
-    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml</checkstyle.suppressions.location>
+    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml
+    </checkstyle.suppressions.location>
   </properties>
   <dependencies>
     <dependency>
@@ -43,17 +45,11 @@
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-      <scope>runtime</scope>
+      <artifactId>junit-jupiter</artifactId>
     </dependency>
     <dependency>
       <groupId>org.junit.platform</groupId>
       <artifactId>junit-platform-launcher</artifactId>
-      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.vintage</groupId>
@@ -86,6 +82,10 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
     </dependency>
     <!-- Make sure we provide a default implementation of SLF4J for any test indirectly use it -->
     <dependency>

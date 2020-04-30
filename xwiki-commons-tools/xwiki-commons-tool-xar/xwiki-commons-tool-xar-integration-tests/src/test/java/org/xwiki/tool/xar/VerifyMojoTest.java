@@ -19,16 +19,19 @@
  */
 package org.xwiki.tool.xar;
 
+import java.util.Arrays;
+
 import org.apache.maven.it.VerificationException;
 import org.apache.maven.it.Verifier;
 import org.hamcrest.CoreMatchers;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Integration tests for the Verify Mojo.
- * 
+ *
  * @version $Id$
  * @since 4.0M2
  */
@@ -42,11 +45,13 @@ public class VerifyMojoTest extends AbstractMojoTest
     }
 
     @Test
-    public void executeWithWrongAttachmentAuthors() throws Exception
+    public void executeWithWrongAttachmentAuthorsAndMimetypes() throws Exception
     {
-        verifyExecution("/wrongAttachmentAuthors", "Verifying [Space/WebHome.xml]... errors",
-            "- Attachment author must [xwiki:XWiki.Admin] but was []",
-            "- Attachment author must [xwiki:XWiki.Admin] but was [wrong author]");
+        verifyExecution("/wrongAttachmentAuthorsAndMimetypes", "Verifying [Space/WebHome.xml]... errors",
+            "- Attachment author must be [xwiki:XWiki.Admin] but was []",
+            "- Attachment author must be [xwiki:XWiki.Admin] but was [wrong author]",
+            "- Missing mimetype for attachment [applications.png]",
+            "- Missing mimetype for attachment [configuration.png]");
     }
 
     @Test
@@ -93,6 +98,14 @@ public class VerifyMojoTest extends AbstractMojoTest
     }
 
     @Test
+    public void executeWithVisibleTechnicalPages() throws Exception
+    {
+        Verifier verifier = createVerifier("/visibleTechnicalPages");
+        verifier.executeGoal("install");
+        verifier.verifyErrorFreeLog();
+    }
+
+    @Test
     public void executeWithNotEmptyDefaultLanguage() throws Exception
     {
         verifyExecution("/notEmptyDefaultLanguage", "Verifying [Space/WebHome.xml]... errors",
@@ -111,7 +124,7 @@ public class VerifyMojoTest extends AbstractMojoTest
     {
         verifyExecution("/wrongPageTitle", "Verifying [Space/WebPreferences.xml]... errors",
             "- [WebPreferences.xml] ([Space.WebPreferences]) page must have a title matching regex "
-            + "[\\$services\\.localization\\.render\\('admin.preferences.title'\\)]",
+                + "[\\$services\\.localization\\.render\\('admin.preferences.title'\\)]",
             "There are errors in the XAR XML files!");
     }
 
@@ -119,25 +132,43 @@ public class VerifyMojoTest extends AbstractMojoTest
     public void executeWithMissingLicenseHeader() throws Exception
     {
         Verifier verifier = createVerifier("/missingLicense");
-        verifier.addCliOption("-DformatLicense=true");
-        verifier.addCliOption("-Dcommons.version=" + System.getProperty("commons.version"));
+        verifier.addCliOption("-Dxar.formatLicense=true");
+        verifier.addCliOption("-Dxar.commons.version=" + System.getProperty("commons.version"));
         verifyExecution(verifier, "Missing header in");
     }
 
     @Test
-    public void executeContentAndTechnicalPages() throws Exception
+    public void executeWithTranslationPages() throws Exception
     {
-        verifyExecution("/contentAndTechnical",
-            "Verifying [Main/EditTranslations.xml]... errors",
-            "- Technical documents must be hidden",
-            "Verifying [Main/Translations.xml]... errors",
-            "- Default Language should have been [en] but was []");
+        Verifier verifier = createVerifier("/translations");
+        verifier.executeGoal("install");
+        verifier.verifyErrorFreeLog();
     }
 
     @Test
-    public void executeOk() throws Exception
+    public void executeWithTranslationOverrides() throws Exception
     {
-        Verifier verifier = createVerifier("/allOk");
+        Verifier verifier = createVerifier("/translationOverrides");
+        verifier.executeGoal("install");
+        verifier.verifyErrorFreeLog();
+    }
+
+    @Test
+    public void executeWithWrongTranslationPages() throws Exception
+    {
+        // @formatter:off
+        verifyExecution("/wrongTranslations",
+            "Verifying [Main/SomeTranslations.xml]... errors",
+            "- Technical documents must be hidden",
+            "Verifying [Main/Translations.xml]... errors",
+            "- Default Language should have been [en] but was []");
+        // @formatter:on
+    }
+
+    @Test
+    public void executeWhenContentPages() throws Exception
+    {
+        Verifier verifier = createVerifier("/contentPages");
         verifier.executeGoal("install");
         verifier.verifyErrorFreeLog();
     }
@@ -158,21 +189,77 @@ public class VerifyMojoTest extends AbstractMojoTest
             "There are errors in the XAR XML files!");
     }
 
-    private void verifyExecution(Verifier verifier, String... messages) throws Exception
+    @Test
+    public void executeWithWrongVisibilityForTranslations() throws Exception
     {
-        try {
+        verifyExecution("/wrongVisibilityForTranslations", "Verifying [Space/UserTranslations.xml]... errors",
+            "- [UserTranslations.xml] ([Space.UserTranslations]) page contains a translation using a wrong "
+                + "visibility [USER]. Consider using a [WIKI] visibility.",
+            "Verifying [Space/GlobalTranslations.xml]... errors",
+            "- [GlobalTranslations.xml] ([Space.GlobalTranslations]) page contains a translation using a wrong "
+                + "visibility [GLOBAL]. Consider using a [WIKI] visibility.",
+            "There are errors in the XAR XML files!");
+    }
+
+    private void verifyExecution(Verifier verifier, String... messages)
+    {
+        Throwable exception = assertThrows(VerificationException.class, () -> {
             verifier.executeGoal("install");
             verifier.verifyErrorFreeLog();
-            fail("An error should have been thrown in the build");
-        } catch (VerificationException expected) {
-            for (String message : messages) {
-                assertThat(expected.getMessage(), CoreMatchers.containsString(message));
-            }
+        });
+        for (String message : messages) {
+            assertThat(exception.getMessage(), CoreMatchers.containsString(message));
         }
     }
 
     private void verifyExecution(String testDirectory, String... messages) throws Exception
     {
         verifyExecution(createVerifier(testDirectory), messages);
+    }
+
+    @Test
+    public void executeWithDatesPresent() throws Exception
+    {
+        // @formatter:off
+        verifyExecution("/datesPresent",
+            "Verifying [Space/WebHome.xml]... errors",
+            "- 'date' field is present",
+            "- 'contentUpdateDate' field is present",
+            "- 'creationDate' field is present",
+            "Verifying [Space/Test.xml]... errors",
+            "- 'date' field is present",
+            "- 'contentUpdateDate' field is present",
+            "- 'creationDate' field is present",
+            "There are errors in the XAR XML files!");
+        // @formatter:on
+    }
+
+    @Test
+    public void executeWithSkippedDatesCheck() throws Exception
+    {
+        Verifier verifier = createVerifier("/datesPresent");
+        verifier.addCliOption("-Dxar.dates.skip=true");
+        verifier.executeGoal("install");
+        verifier.verifyErrorFreeLog();
+    }
+
+    @Test
+    public void executeWithSkippedDatesCheckDocument() throws Exception
+    {
+        Verifier verifier = createVerifier("/datesPresent");
+        verifier.addCliOption("-Dxar.dates.skip.documentList=Space.WebHome,Space.Test");
+        verifier.executeGoal("install");
+        verifier.verifyErrorFreeLog();
+    }
+
+
+    @Test
+    public void invalidXml() throws Exception
+    {
+        Verifier verifier = createVerifier("/invalidContent");
+        assertThrows(VerificationException.class, () -> {
+            verifier.executeGoals(Arrays.asList("clean", "package"));
+        });
+        verifier.verifyTextInLog("Unexpected non-text content found in element [content]");
     }
 }

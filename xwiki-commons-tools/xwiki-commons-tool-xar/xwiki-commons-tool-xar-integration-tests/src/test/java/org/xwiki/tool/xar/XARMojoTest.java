@@ -24,22 +24,26 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Map;
 
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipFile;
+import org.apache.commons.io.FileUtils;
 import org.apache.maven.it.VerificationException;
 import org.apache.maven.it.Verifier;
 import org.codehaus.plexus.archiver.zip.ZipUnArchiver;
 import org.codehaus.plexus.logging.Logger;
 import org.codehaus.plexus.logging.console.ConsoleLogger;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.dom4j.Document;
+import org.dom4j.io.SAXReader;
+import org.junit.jupiter.api.Test;
 import org.xwiki.tool.xar.internal.XWikiDocument;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Integration tests for the XAR Mojo.
@@ -54,12 +58,9 @@ public class XARMojoTest extends AbstractMojoTest
     {
         Verifier verifier = createVerifier("/invalidPackageFile");
 
-        try {
+        assertThrows(Exception.class, () -> {
             verifier.executeGoals(Arrays.asList("clean", "package"));
-            fail("Should have raised an exception since the provided package.xml is invalid.");
-        } catch (Exception expected) {
-            // Expected
-        }
+        });
 
         verifier.verifyTextInLog("[ERROR] The existing [package.xml] is invalid.");
     }
@@ -106,8 +107,8 @@ public class XARMojoTest extends AbstractMojoTest
                 }
             }
 
-            assertEquals("The newly created xar archive doesn't contain the required documents", documentNames.size(),
-                countEntries);
+            assertEquals(documentNames.size(), countEntries,
+                "The newly created xar archive doesn't contain the required documents");
         }
     }
 
@@ -121,7 +122,7 @@ public class XARMojoTest extends AbstractMojoTest
         File xarFile = new File(verifier.getBasedir(), "target/xwiki-commons-tool-xar-plugin-test-1.0.xar");
 
         try (ZipFile zip = new ZipFile(xarFile)) {
-            assertNotNull("Package.xml file not found in zip!", zip.getEntry(XARMojo.PACKAGE_XML));
+            assertNotNull(zip.getEntry(XARMojo.PACKAGE_XML), "Package.xml file not found in zip!");
 
             File tempDir = new File(verifier.getBasedir(), "target/temp");
             tempDir.mkdirs();
@@ -150,8 +151,8 @@ public class XARMojoTest extends AbstractMojoTest
                     }
                 }
             }
-            assertEquals("The newly created xar archive doesn't contain the required documents", documentNames.size(),
-                countEntries);
+            assertEquals(documentNames.size(), countEntries,
+                "The newly created xar archive doesn't contain the required documents");
         }
     }
 
@@ -175,32 +176,81 @@ public class XARMojoTest extends AbstractMojoTest
         File classesDir = new File(verifier.getBasedir(), "target/classes");
         Collection<String> documentNames = XARMojo.getDocumentNamesFromXML(new File(classesDir, "package.xml"));
 
-        assertEquals("The newly created xar archive doesn't contain the required documents", 1, documentNames.size());
+        assertEquals(1, documentNames.size(), "The newly created xar archive doesn't contain the required documents");
 
-        assertEquals("Page reference not properly serialized in the package.xml", "1.2.page",
-            documentNames.iterator().next());
+        assertEquals("1.2.page", documentNames.iterator().next(),
+            "Page reference not properly serialized in the package.xml");
     }
 
     @Test
-    @Ignore("Could not make it work, for some reason the plugin configuration is not taken into account!")
     public void transformXML() throws Exception
     {
         Verifier verifier = createVerifier("/transformedXml");
         verifier.executeGoals(Arrays.asList("clean", "package"));
         verifier.verifyErrorFreeLog();
+
+        File tempDir = new File(verifier.getBasedir(), "target/temp");
+        tempDir.mkdirs();
+
+        // Extract the generated XAR so that we verify its content easily
+        File xarFile = new File(verifier.getBasedir(), "target/xwiki-commons-tool-xar-plugin-test-1.0.xar");
+        ZipUnArchiver unarchiver = new ZipUnArchiver(xarFile);
+        unarchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_ERROR, "xar"));
+        unarchiver.setDestDirectory(tempDir);
+        unarchiver.extract();
+
+        // check that the transformations have taken place
+        Document document = new SAXReader().read(new File(tempDir, "Blog/WebHome.xml"));
+        FileUtils.copyFile(new File(tempDir, "Blog/WebHome.xml"), new File("/tmp/WebHome.xml"));
+        assertEquals("100", document.selectSingleNode("/xwikidoc/object/property/itemsPerPage").getText(),
+            "Transformation of itemsPerPage did not happen?");
+        assertEquals("My Blog (The Wiki Blog)", document.selectSingleNode("/xwikidoc/object/property/title").getText(),
+            "Transformation of title did not happen?");
+        assertEquals("This page will gather my blog.", document.selectSingleNode("/xwikidoc/content").getText().trim(),
+            "Insertion of content did not happen?");
+
+        assertTrue(document.selectSingleNode("/xwikidoc/attachment/content") != null,
+            "Insertion of attachment did not happen?");
+    }
+
+    @Test
+    public void entities() throws Exception
+    {
+        Verifier verifier = createVerifier("/entries");
+        verifier.executeGoals(Arrays.asList("clean", "package"));
+        verifier.verifyErrorFreeLog();
+
+        File tempDir = new File(verifier.getBasedir(), "target/temp");
+        tempDir.mkdirs();
+
+        // Extract the generated XAR so that we verify its content easily
+        File xarFile = new File(verifier.getBasedir(), "target/xwiki-commons-tool-xar-plugin-test-1.0.xar");
+        ZipUnArchiver unarchiver = new ZipUnArchiver(xarFile);
+        unarchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_ERROR, "xar"));
+        unarchiver.setDestDirectory(tempDir);
+        unarchiver.extract();
+
+        File classesDir = new File(verifier.getBasedir(), "target/classes");
+        Map<String, XAREntry> entries = XARMojo.getXarEntriesMapFromXML(new File(classesDir, "package.xml"));
+
+        assertEquals(3, entries.size(), "The newly created xar archive doesn't contain the required documents");
+
+        assertEquals("home", entries.get("Type.home").getType(), "Not the right type");
+        assertEquals("configuration", entries.get("Type.configuration").getType(), "Not the right type");
+        assertEquals("custom", entries.get("Type.custom").getType(), "Not the right type");
     }
 
     @Test
     public void invalidXml() throws Exception
     {
         Verifier verifier = createVerifier("/invalidXml");
-        try {
+
+        assertThrows(VerificationException.class, () -> {
             verifier.executeGoals(Arrays.asList("clean", "package"));
-            fail("Should have failed with an exception here!");
-        } catch (VerificationException expected) {
-            verifier.verifyTextInLog("Error while creating XAR file");
-            verifier.verifyTextInLog("Content doesn't point to valid wiki page XML");
-            verifier.verifyTextInLog("Failed to parse");
-        }
+        });
+
+        verifier.verifyTextInLog("Error while creating XAR file");
+        verifier.verifyTextInLog("Content doesn't point to valid wiki page XML");
+        verifier.verifyTextInLog("Failed to parse");
     }
 }

@@ -21,19 +21,21 @@ package org.xwiki.extension.version.internal;
 
 import java.util.Arrays;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.xwiki.extension.test.TestVersion;
 import org.xwiki.extension.version.IncompatibleVersionConstraintException;
 import org.xwiki.extension.version.InvalidVersionRangeException;
+import org.xwiki.extension.version.Version;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DefaultVersionConstraintTest
 {
     @Test
-    public void testMerge() throws IncompatibleVersionConstraintException
+    public void merge() throws IncompatibleVersionConstraintException
     {
         assertEquals("2.0", new DefaultVersionConstraint("1.0").merge(new DefaultVersionConstraint("2.0")).getValue());
         assertEquals("[2.0]",
@@ -45,23 +47,19 @@ public class DefaultVersionConstraintTest
 
         // Invalid
 
-        try {
+        Throwable exception = assertThrows(IncompatibleVersionConstraintException.class, () -> {
             new DefaultVersionConstraint("[1.0]").merge(new DefaultVersionConstraint("[2.0]")).getValue();
-            Assert.fail("Should have failed");
-        } catch (IncompatibleVersionConstraintException expected) {
-            // expected
-        }
+        });
+        assertEquals("Ranges [[1.0]] and [[2.0]] are incompatibles", exception.getMessage());
 
-        try {
+        exception = assertThrows(IncompatibleVersionConstraintException.class, () -> {
             new DefaultVersionConstraint("[1.0]").merge(new DefaultVersionConstraint("2.0")).getValue();
-            Assert.fail("Should have failed");
-        } catch (IncompatibleVersionConstraintException expected) {
-            // expected
-        }
+        });
+        assertEquals("Ranges [[1.0]] and [[2.0,]] are incompatibles", exception.getMessage());
     }
 
     @Test
-    public void testParse() throws InvalidVersionRangeException
+    public void parse() throws InvalidVersionRangeException
     {
         assertEquals("1.0", new DefaultVersionConstraint("1.0").getVersion().getValue());
         assertEquals(Arrays.asList(new DefaultVersionRangeCollection("[1.0]")),
@@ -79,16 +77,22 @@ public class DefaultVersionConstraintTest
     }
 
     @Test
-    public void testContainsVersion()
+    public void containsVersion()
     {
-        assertTrue(new DefaultVersionConstraint("1.0").containsVersion(new DefaultVersion("1.0")));
-        assertFalse(new DefaultVersionConstraint("1.0").containsVersion(new DefaultVersion("2.0")));
+        assertTrue(new DefaultVersionConstraint("1.0").containsVersion((Version) new DefaultVersion("1.0")));
+        assertFalse(new DefaultVersionConstraint("1.0").containsVersion((Version) new DefaultVersion("2.0")));
+
+        assertTrue(new DefaultVersionConstraint("1.0").containsVersion(new TestVersion("1.0")));
+        assertFalse(new DefaultVersionConstraint("1.0").containsVersion(new TestVersion("2.0")));
     }
 
     @Test
-    public void testIsCompatible()
+    public void isCompatible()
     {
-        assertTrue(new DefaultVersionConstraint("1.0").isCompatible(new DefaultVersion("1.0")));
-        assertTrue(new DefaultVersionConstraint("1.0").isCompatible(new DefaultVersion("2.0")));
+        assertTrue(new DefaultVersionConstraint("1.0").isCompatible((Version) new DefaultVersion("1.0")));
+        assertTrue(new DefaultVersionConstraint("1.0").isCompatible((Version) new DefaultVersion("2.0")));
+
+        assertTrue(new DefaultVersionConstraint("1.0").isCompatible(new TestVersion("1.0")));
+        assertTrue(new DefaultVersionConstraint("1.0").isCompatible(new TestVersion("2.0")));
     }
 }

@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Map;
 
 import org.xwiki.extension.repository.ExtensionRepositoryDescriptor;
-import org.xwiki.stability.Unstable;
 
 /**
  * Mutable version of {@link Extension}.
@@ -31,7 +30,6 @@ import org.xwiki.stability.Unstable;
  * @version $Id$
  * @since 8.4RC1
  */
-@Unstable
 public interface MutableExtension extends Extension
 {
     /**

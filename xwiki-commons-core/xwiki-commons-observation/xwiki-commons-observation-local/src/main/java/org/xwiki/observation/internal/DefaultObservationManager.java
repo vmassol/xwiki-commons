@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.descriptor.ComponentDescriptor;
@@ -175,6 +176,16 @@ public class DefaultObservationManager implements ObservationManager
     @Override
     public void addListener(EventListener eventListener)
     {
+        try {
+            addListenerInernal(eventListener);
+        } catch (Exception e) {
+            // Protect against bad listeners which have their getName() methods throw some runtime exception.
+            this.logger.warn("Failed to add listener. Root cause: [{}]", ExceptionUtils.getRootCauseMessage(e));
+        }
+    }
+
+    private void addListenerInernal(EventListener eventListener)
+    {
         Map<String, EventListener> listeners = getListenersByName();
 
         // Remove previous listener if any
@@ -183,33 +194,38 @@ public class DefaultObservationManager implements ObservationManager
             removeListener(eventListener.getName());
 
             this.logger.warn(
-                "The [{}] listener is overwritting a previously "
+                "The [{}] listener is overwriting a previously "
                     + "registered listener [{}] since they both are registered under the same id [{}]. "
                     + "In the future consider removing a Listener first if you really want to register it again.",
-                new Object[] { eventListener.getClass().getName(), previousListener.getClass().getName(),
-                        eventListener.getName() });
+                new Object[] {eventListener.getClass().getName(), previousListener.getClass().getName(),
+                    eventListener.getName()});
         }
 
         // Register the listener by name. If already registered, override it.
         listeners.put(eventListener.getName(), eventListener);
 
-        // For each event defined for this listener, add it to the Event Map.
-        for (Event event : eventListener.getEvents()) {
-            // Check if this is a new Event type not already registered
-            Map<String, RegisteredListener> eventListeners = this.listenersByEvent.get(event.getClass());
-            if (eventListeners == null) {
-                // No listener registered for this event yet. Create a map to store listeners for this event.
-                eventListeners = new ConcurrentHashMap<String, RegisteredListener>();
-                this.listenersByEvent.put(event.getClass(), eventListeners);
-                // There is no RegisteredListener yet, create one
-                eventListeners.put(eventListener.getName(), new RegisteredListener(eventListener, event));
-            } else {
-                // Add an event to existing RegisteredListener object
-                RegisteredListener registeredListener = eventListeners.get(eventListener.getName());
-                if (registeredListener == null) {
+        // when lot of threads are involved there might be a concurrent access when inserting a new listener
+        // this needs to be managed with a lock to avoid an event to be "lost", e.g. not consumed by the appropriate
+        // listener
+        synchronized (this.listenersByEvent) {
+            // For each event defined for this listener, add it to the Event Map.
+            for (Event event : eventListener.getEvents()) {
+                // Check if this is a new Event type not already registered
+                Map<String, RegisteredListener> eventListeners = this.listenersByEvent.get(event.getClass());
+                if (eventListeners == null) {
+                    // No listener registered for this event yet. Create a map to store listeners for this event.
+                    eventListeners = new ConcurrentHashMap<>();
+                    this.listenersByEvent.put(event.getClass(), eventListeners);
+                    // There is no RegisteredListener yet, create one
                     eventListeners.put(eventListener.getName(), new RegisteredListener(eventListener, event));
                 } else {
-                    registeredListener.addEvent(event);
+                    // Add an event to existing RegisteredListener object
+                    RegisteredListener registeredListener = eventListeners.get(eventListener.getName());
+                    if (registeredListener == null) {
+                        eventListeners.put(eventListener.getName(), new RegisteredListener(eventListener, event));
+                    } else {
+                        registeredListener.addEvent(event);
+                    }
                 }
             }
         }
@@ -304,8 +320,8 @@ public class DefaultObservationManager implements ObservationManager
                         listener.listener.onEvent(event, source, data);
                     } catch (Exception e) {
                         // protect from bad listeners
-                        this.logger.error("Failed to send event [{}] to listener [{}]", new Object[] { event,
-                            listener.listener, e });
+                        this.logger.error("Failed to send event [{}] to listener [{}]",
+                            new Object[] {event, listener.listener, e});
                     }
 
                     // Only send the first matching event since the listener should only be called once per event.
@@ -332,16 +348,24 @@ public class DefaultObservationManager implements ObservationManager
     private void onComponentEvent(ComponentDescriptorEvent componentEvent, ComponentManager componentManager,
         ComponentDescriptor<EventListener> descriptor)
     {
-        if (componentEvent.getRoleType() == EventListener.class) {
-            if (componentEvent instanceof ComponentDescriptorAddedEvent) {
-                onEventListenerComponentAdded((ComponentDescriptorAddedEvent) componentEvent, componentManager,
-                    descriptor);
-            } else if (componentEvent instanceof ComponentDescriptorRemovedEvent) {
-                onEventListenerComponentRemoved((ComponentDescriptorRemovedEvent) componentEvent, componentManager,
-                    descriptor);
-            } else {
-                this.logger.warn("Ignoring unknown Component event [{}]", componentEvent.getClass().getName());
+        try {
+            if (componentEvent.getRoleType() == EventListener.class) {
+                if (componentEvent instanceof ComponentDescriptorAddedEvent) {
+                    onEventListenerComponentAdded((ComponentDescriptorAddedEvent) componentEvent, componentManager,
+                        descriptor);
+                } else if (componentEvent instanceof ComponentDescriptorRemovedEvent) {
+                    onEventListenerComponentRemoved((ComponentDescriptorRemovedEvent) componentEvent, componentManager,
+                        descriptor);
+                } else {
+                    this.logger.warn("Ignoring unknown Component event [{}]", componentEvent.getClass().getName());
+                }
             }
+        } catch (Exception e) {
+            // Protect against bad listeners which have their getName() or getEvents() methods throw some runtime
+            // exception. For example we don't want to fail so that Component registration or unregistration won't fail
+            // in this case.
+            this.logger.warn("Failed to notify some event listeners about component [{}] being added or removed. "
+                + "Root cause: [{}]", descriptor, ExceptionUtils.getRootCauseMessage(e));
         }
     }
 
@@ -358,16 +382,20 @@ public class DefaultObservationManager implements ObservationManager
         try {
             EventListener eventListener = componentManager.getInstance(EventListener.class, event.getRoleHint());
 
-            if (getListener(eventListener.getName()) != eventListener) {
+            EventListener existingListener = getListener(eventListener.getName());
+
+            // No reason to re-add the exact same listener.
+            // No reason to complain about this (for example root installed extensions are both available when
+            // initializing DefaultObservationManager to not miss anything and produce ComponentDescriptorAddedEvent
+            // events which can be used for other needs).
+            if (existingListener != eventListener) {
                 addListener(eventListener);
-            } else {
-                this.logger.warn("An Event Listener named [{}] already exists, ignoring the [{}] component",
-                    eventListener.getName(), descriptor.getImplementation().getName());
             }
         } catch (ComponentLookupException e) {
-            this.logger.error("Failed to lookup the Event Listener [{}] corresponding to the Component registration "
-                + "event for [{}]. Ignoring the event", new Object[] { event.getRoleHint(),
-                    descriptor.getImplementation().getName(), e });
+            this.logger.error(
+                "Failed to lookup the Event Listener [{}] corresponding to the Component registration "
+                    + "event for [{}]. Ignoring the event",
+                event.getRoleHint(), descriptor.getImplementation().getName(), e);
         }
     }
 

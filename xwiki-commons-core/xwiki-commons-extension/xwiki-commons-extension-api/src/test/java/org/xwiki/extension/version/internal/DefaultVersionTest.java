@@ -25,10 +25,18 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.xwiki.extension.version.Version;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Validate {@link DefaultVersion}.
+ * 
+ * @version $Id$
+ */
 public class DefaultVersionTest
 {
     private void validateSerialize(Version version) throws IOException, ClassNotFoundException
@@ -41,42 +49,57 @@ public class DefaultVersionTest
 
         ByteArrayInputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
         ObjectInputStream in = new ObjectInputStream(inputStream);
-        Assert.assertEquals(version, in.readObject());
+        assertEquals(version, in.readObject());
         in.close();
         inputStream.close();
     }
 
+    // Tests
+
     @Test
-    public void testCompareTo()
+    public void compareTo()
     {
-        Assert.assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1")));
-        Assert.assertTrue(new DefaultVersion("1.2").compareTo(new DefaultVersion("1.1")) > 0);
-        Assert.assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.2")) < 0);
+        assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1")));
+        assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1.0")));
+        assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1.")));
+        assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1ga")));
+        assertEquals(0, new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1final")));
+        assertTrue(new DefaultVersion("1.2").compareTo(new DefaultVersion("1.1")) > 0);
+        assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.2")) < 0);
 
-        Assert.assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1w")) < 0);
+        assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1w")) < 0);
 
-        Assert.assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1-milestone-1")) > 0);
-        Assert.assertTrue(new DefaultVersion("1.1.1").compareTo(new DefaultVersion("1.1-milestone-1")) > 0);
+        assertTrue(new DefaultVersion("1.1").compareTo(new DefaultVersion("1.1-milestone-1")) > 0);
+        assertTrue(new DefaultVersion("1.1.1").compareTo(new DefaultVersion("1.1-milestone-1")) > 0);
     }
 
     @Test
-    public void testType()
+    public void getType()
     {
-        Assert.assertEquals(Version.Type.SNAPSHOT, new DefaultVersion("1.1-SNAPSHOT").getType());
-        Assert.assertEquals(Version.Type.BETA, new DefaultVersion("1.1-milestone-1").getType());
-        Assert.assertEquals(Version.Type.STABLE, new DefaultVersion("1.1").getType());
+        assertEquals(Version.Type.SNAPSHOT, new DefaultVersion("1.1-SNAPSHOT").getType());
+        assertEquals(Version.Type.BETA, new DefaultVersion("1.1-milestone-1").getType());
+        assertEquals(Version.Type.STABLE, new DefaultVersion("1.1").getType());
     }
 
     @Test
-    public void testSerialize() throws IOException, ClassNotFoundException
+    public void serialize() throws IOException, ClassNotFoundException
     {
         validateSerialize(new DefaultVersion("1.1"));
         validateSerialize(new DefaultVersion("1.1-milestone-1"));
     }
 
     @Test
-    public void testBigInteger()
+    public void getTypeForBigInteger()
     {
         new DefaultVersion("1.2147483648").getType();
+    }
+
+    @Test
+    public void testHashCode()
+    {
+        assertEquals(new DefaultVersion("1.1").hashCode(), new DefaultVersion("1.1").hashCode());
+        assertEquals(new DefaultVersion("1.1").hashCode(), new DefaultVersion("1.1.0").hashCode());
+
+        assertNotEquals(new DefaultVersion("1.1").hashCode(), new DefaultVersion("2.0").hashCode());
     }
 }

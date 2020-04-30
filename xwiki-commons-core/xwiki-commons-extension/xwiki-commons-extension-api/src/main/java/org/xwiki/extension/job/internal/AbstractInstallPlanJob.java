@@ -21,7 +21,6 @@ package org.xwiki.extension.job.internal;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -243,6 +242,14 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
     {
         String id = node.getAction().getExtension().getId().getId();
 
+        addExtensionNode(id, node);
+
+        node.getAction().getExtension().getExtensionFeatures()
+            .forEach(feature -> addExtensionNode(feature.getId(), node));
+    }
+
+    private void addExtensionNode(String id, ModifableExtensionPlanNode node)
+    {
         Map<String, ModifableExtensionPlanNode> extensionsById = this.extensionsNodeCache.get(id);
 
         if (extensionsById == null) {
@@ -343,38 +350,6 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
         return false;
     }
 
-    private VersionConstraint checkExistingPlanNodeDependency(ExtensionDependency extensionDependency, String namespace,
-        List<ModifableExtensionPlanNode> parentBranch, VersionConstraint previousVersionConstraint)
-        throws InstallException
-    {
-        VersionConstraint versionConstraint = previousVersionConstraint;
-
-        ModifableExtensionPlanNode existingNode = getExtensionNode(extensionDependency.getId(), namespace);
-        if (existingNode != null) {
-            if (versionConstraint.isCompatible(existingNode.getAction().getExtension().getId().getVersion())) {
-                ModifableExtensionPlanNode node = new ModifableExtensionPlanNode(extensionDependency, existingNode);
-                addExtensionNode(node);
-                parentBranch.add(node);
-
-                return null;
-            } else {
-                if (existingNode.versionConstraint != null) {
-                    try {
-                        versionConstraint = versionConstraint.merge(existingNode.versionConstraint);
-                    } catch (IncompatibleVersionConstraintException e) {
-                        throw new InstallException("Dependency [" + extensionDependency
-                            + "] is incompatible with current constaint [" + existingNode.versionConstraint + "]", e);
-                    }
-                } else {
-                    throw new InstallException("Dependency [" + extensionDependency + "] incompatible with extension ["
-                        + existingNode.getAction().getExtension() + "]");
-                }
-            }
-        }
-
-        return versionConstraint;
-    }
-
     private boolean checkExistingPlanNodeExtension(Extension extension, String namespace) throws InstallException
     {
         if (checkExistingPlanNodeExtension(extension.getId(), true, namespace)) {
@@ -410,13 +385,109 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
         return false;
     }
 
-    private ExtensionDependency checkInstalledDependency(ExtensionDependency extensionDependency,
-        VersionConstraint versionConstraint, String namespace, List<ModifableExtensionPlanNode> parentBranch)
+    private Object checkPlannedDependency(ExtensionDependency extensionDependency,
+        VersionConstraint previousVersionConstraint, String namespace) throws InstallException
+    {
+        VersionConstraint mergedVersionContraint = previousVersionConstraint;
+
+        Map<String, ModifableExtensionPlanNode> idNodes = this.extensionsNodeCache.get(extensionDependency.getId());
+
+        if (idNodes != null) {
+            ModifableExtensionPlanNode existingNode = idNodes.get(namespace);
+
+            if (existingNode != null) {
+                // Already planned on the same namespace
+                ExtensionId feature =
+                    existingNode.getAction().getExtension().getExtensionFeature(extensionDependency.getId());
+
+                if (mergedVersionContraint.isCompatible(feature.getVersion())) {
+                    // Continue with the existing extension if it's compatible
+                    return existingNode;
+                } else {
+                    // Merge constraints
+                    mergedVersionContraint =
+                        checkPlannedDependency(existingNode, extensionDependency, mergedVersionContraint);
+                }
+            } else if (namespace != null) {
+                existingNode = idNodes.get(null);
+
+                if (existingNode != null) {
+                    // Already planned but on root namespace
+                    // Switch current install on root
+                    return null;
+                }
+            } else {
+                // Already planned but on sub-namespaces
+                // Switch all existing nodes to root namespace
+                // Store nodes to remove in a temporary list to avoid concurrent modification issues
+                List<ModifableExtensionPlanNode> nodesToRemove = new ArrayList<>();
+                for (ModifableExtensionPlanNode node : idNodes.values()) {
+                    nodesToRemove.add(node);
+
+                    // Version the version constraints to make sure they are compatibles
+                    mergedVersionContraint = checkPlannedDependency(node, extensionDependency, mergedVersionContraint);
+                }
+                // Switch existing nodes to root namespace and make sure they all are compatibles
+                for (ModifableExtensionPlanNode node : nodesToRemove) {
+                    setRootNamespace(node, mergedVersionContraint);
+                }
+            }
+        }
+
+        return mergedVersionContraint;
+    }
+
+    private void setRootNamespace(ModifableExtensionPlanNode node, VersionConstraint mergedVersionContraint)
+    {
+        // Remove the node from the index
+        removeNodeFromCache(node);
+
+        // Modify the namespace of the node
+        ExtensionPlanAction action = node.getAction();
+        node.versionConstraint = mergedVersionContraint;
+        node.setAction(new DefaultExtensionPlanAction(action.getExtension(), action.getRewrittenExtension(),
+            action.getPreviousExtensions(), action.getAction(), null, action.isDependency()));
+
+        // Add back the node in the index
+        addExtensionNode(node);
+    }
+
+    private void removeNodeFromCache(ModifableExtensionPlanNode node)
+    {
+        ExtensionPlanAction action = node.getAction();
+        Extension extension = action.getExtension();
+        String namespace = action.getNamespace();
+
+        removeNodeFromCache(extension.getId().getId(), namespace);
+
+        extension.getExtensionFeatures().forEach(feature -> removeNodeFromCache(feature.getId(), namespace));
+    }
+
+    private void removeNodeFromCache(String feature, String namespace)
+    {
+        this.extensionsNodeCache.get(feature).remove(namespace);
+    }
+
+    private VersionConstraint checkPlannedDependency(ModifableExtensionPlanNode existingNode,
+        ExtensionDependency extensionDependency, VersionConstraint previousVersionConstraint) throws InstallException
+    {
+        if (existingNode.versionConstraint != null) {
+            try {
+                return previousVersionConstraint.merge(existingNode.versionConstraint);
+            } catch (IncompatibleVersionConstraintException e) {
+                throw new InstallException("Dependency [" + extensionDependency
+                    + "] is incompatible with current constaint [" + existingNode.versionConstraint + "]", e);
+            }
+        } else {
+            throw new InstallException("Dependency [" + extensionDependency + "] incompatible with extension ["
+                + existingNode.getAction().getExtension() + "]");
+        }
+    }
+
+    private ExtensionDependency checkInstalledDependency(InstalledExtension installedExtension,
+        ExtensionDependency extensionDependency, VersionConstraint versionConstraint, String namespace)
         throws InstallException
     {
-        InstalledExtension installedExtension =
-            this.installedExtensionRepository.getInstalledExtension(extensionDependency.getId(), namespace);
-
         ExtensionDependency targetDependency = extensionDependency;
 
         if (installedExtension != null) {
@@ -430,14 +501,6 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
                             "There is already an installed extension [{}] covering extension dependency [{}]",
                             installedExtension.getId(), extensionDependency);
                     }
-
-                    ModifableExtensionPlanNode node =
-                        new ModifableExtensionPlanNode(extensionDependency, versionConstraint);
-                    node.setAction(new DefaultExtensionPlanAction(installedExtension, installedExtension, null,
-                        Action.NONE, namespace, installedExtension.isDependency(namespace)));
-
-                    addExtensionNode(node);
-                    parentBranch.add(node);
 
                     return null;
                 }
@@ -493,19 +556,21 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      * @param extensionDependency the extension dependency to install
      * @param namespace the namespace where to install the extension
      * @param parentBranch the children of the parent {@link DefaultExtensionPlanNode}
-     * @param managedDependencies the managed dependencies
+     * @param extensionContext the current extension context
+     * @param parents the parents extensions (which triggered this extension install)
      * @throws InstallException error when trying to install provided extension
      * @throws ResolveException
      * @throws IncompatibleVersionConstraintException
      */
     private void installExtensionDependency(ExtensionDependency extensionDependency, String namespace,
-        List<ModifableExtensionPlanNode> parentBranch, Map<String, ExtensionDependency> managedDependencies)
+        List<ModifableExtensionPlanNode> parentBranch, ExtensionPlanContext extensionContext, Set<String> parents)
         throws InstallException, IncompatibleVersionConstraintException, ResolveException
     {
         if (extensionDependency.isOptional()) {
-            installOptionalExtensionDependency(extensionDependency, namespace, parentBranch, managedDependencies);
+            installOptionalExtensionDependency(extensionDependency, namespace, parentBranch, extensionContext, parents);
         } else {
-            installMandatoryExtensionDependency(extensionDependency, namespace, parentBranch, managedDependencies);
+            installMandatoryExtensionDependency(extensionDependency, namespace, parentBranch, extensionContext,
+                parents);
         }
     }
 
@@ -515,24 +580,26 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      * @param extensionDependency the extension dependency to install
      * @param namespace the namespace where to install the extension
      * @param parentBranch the children of the parent {@link DefaultExtensionPlanNode}
-     * @param managedDependencies the managed dependencies
+     * @param extensionContext the current extension context
+     * @param parents the parents extensions (which triggered this extension install)
      * @throws InstallException error when trying to install provided extension
      * @throws ResolveException
      * @throws IncompatibleVersionConstraintException
      */
     private boolean installOptionalExtensionDependency(ExtensionDependency extensionDependency, String namespace,
-        List<ModifableExtensionPlanNode> parentBranch, Map<String, ExtensionDependency> managedDependencies)
+        List<ModifableExtensionPlanNode> parentBranch, ExtensionPlanContext extensionContext, Set<String> parents)
     {
         // Save current plan
         List<ModifableExtensionPlanNode> dependencyBranch = new ArrayList<>();
 
         try {
-            installMandatoryExtensionDependency(extensionDependency, namespace, dependencyBranch, managedDependencies);
+            installMandatoryExtensionDependency(extensionDependency, namespace, dependencyBranch, extensionContext,
+                parents);
 
             parentBranch.addAll(dependencyBranch);
 
             return true;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             if (getRequest().isVerbose()) {
                 this.logger.warn("Failed to install optional dependency [{}] with error: {}", extensionDependency,
                     ExceptionUtils.getRootCauseMessage(e));
@@ -548,13 +615,14 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      * @param extensionDependency the extension dependency to install
      * @param namespace the namespace where to install the extension
      * @param parentBranch the children of the parent {@link DefaultExtensionPlanNode}
-     * @param managedDependencies the managed dependencies
+     * @param extensionContext the current extension context
+     * @param parents the parents extensions (which triggered this extension install)
      * @throws InstallException error when trying to install provided extension
      * @throws ResolveException
      * @throws IncompatibleVersionConstraintException
      */
     protected void installMandatoryExtensionDependency(ExtensionDependency extensionDependency, String namespace,
-        List<ModifableExtensionPlanNode> parentBranch, Map<String, ExtensionDependency> managedDependencies)
+        List<ModifableExtensionPlanNode> parentBranch, ExtensionPlanContext extensionContext, Set<String> parents)
         throws InstallException, IncompatibleVersionConstraintException, ResolveException
     {
         // Make sure the dependency have a version constraint
@@ -585,24 +653,56 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
         // upgrade/downgrade/replace it)
         if (namespace != null && getRequest().isRootModificationsAllowed()
             && hasIncompatileRootDependency(extensionDependency)) {
-            installMandatoryExtensionDependency(extensionDependency, null, parentBranch, managedDependencies);
+            installMandatoryExtensionDependency(extensionDependency, null, parentBranch, extensionContext, parents);
 
             return;
         }
 
-        // Make sure the dependency is not already in the current plan
-        versionConstraint =
-            checkExistingPlanNodeDependency(extensionDependency, namespace, parentBranch, versionConstraint);
-        if (versionConstraint == null) {
-            // Already exists and added to the tree by #checkExistingPlan
+        // Check already planned install
+        Object plannedResult = checkPlannedDependency(extensionDependency, versionConstraint, namespace);
+        if (plannedResult == null) {
+            // Switch to root
+            installMandatoryExtensionDependency(extensionDependency, null, parentBranch, extensionContext, parents);
+
             return;
+        } else if (plannedResult instanceof ModifableExtensionPlanNode) {
+            ModifableExtensionPlanNode existingNode = (ModifableExtensionPlanNode) plannedResult;
+
+            // Already exists in the plan but we don't trust it (might have been previously been installed with totally
+            // different managed dependencies and a ton of exclusions) so we check the dependencies anyway
+            List<ModifableExtensionPlanNode> children = installExtensionDependencies(
+                existingNode.getAction().getExtension(), namespace, extensionContext, parents);
+
+            ModifableExtensionPlanNode node = new ModifableExtensionPlanNode(extensionDependency, existingNode);
+            node.setChildren(children);
+
+            addExtensionNode(node);
+            parentBranch.add(node);
+
+            return;
+        } else {
+            versionConstraint = (VersionConstraint) plannedResult;
         }
 
         // Check installed extensions
+        InstalledExtension installedExtension =
+            this.installedExtensionRepository.getInstalledExtension(extensionDependency.getId(), namespace);
         ExtensionDependency targetDependency =
-            checkInstalledDependency(extensionDependency, versionConstraint, namespace, parentBranch);
+            checkInstalledDependency(installedExtension, extensionDependency, versionConstraint, namespace);
         if (targetDependency == null) {
-            // Already exists and added to the tree by #checkInstalledExtension
+            // Already installed but we don't trust it (might have been previously been installed with totally different
+            // managed dependencies and a ton of exclusions) so we check the dependencies anyway
+            List<ModifableExtensionPlanNode> children =
+                installExtensionDependencies(installedExtension, namespace, extensionContext, parents);
+
+            ModifableExtensionPlanNode node = new ModifableExtensionPlanNode(extensionDependency, versionConstraint);
+            node.setAction(new DefaultExtensionPlanAction(installedExtension, installedExtension, null, Action.NONE,
+                namespace, installedExtension.isDependency(namespace)));
+            node.setChildren(children);
+
+            addExtensionNode(node);
+            parentBranch.add(node);
+
             return;
         }
 
@@ -616,7 +716,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
 
         // Not found locally, search it remotely
         ModifableExtensionPlanNode node =
-            installExtensionDependency(targetDependency, true, namespace, managedDependencies);
+            installExtensionDependency(targetDependency, true, namespace, extensionContext, parents);
 
         node.versionConstraint = versionConstraint;
 
@@ -630,12 +730,13 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      * @param targetDependency used to search the extension to install in remote repositories
      * @param dependency indicate if the extension is installed as a dependency
      * @param namespace the namespace where to install the extension
-     * @param managedDependencies the managed dependencies
+     * @param extensionContext the current extension context
+     * @param parents the parents extensions (which triggered this extension install)
      * @return the install plan node for the provided extension
      * @throws InstallException error when trying to install provided extension
      */
     private ModifableExtensionPlanNode installExtensionDependency(ExtensionDependency targetDependency,
-        boolean dependency, String namespace, Map<String, ExtensionDependency> managedDependencies)
+        boolean dependency, String namespace, ExtensionPlanContext extensionContext, Set<String> parents)
         throws InstallException
     {
         this.progressManager.pushLevelProgress(2, this);
@@ -643,7 +744,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
         try {
             this.progressManager.startStep(this);
 
-            // Check if the extension is already in local repository
+            // Search the extension
             Extension extension = resolveExtension(targetDependency);
 
             // Rewrite the extension
@@ -660,7 +761,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
 
             try {
                 return installExtension(extension, rewrittenExtension, dependency, namespace, targetDependency,
-                    managedDependencies);
+                    new ExtensionPlanContext(extensionContext, targetDependency), parents);
             } catch (Exception e) {
                 throw new InstallException(
                     String.format("Failed to create an install plan for extension dependency [%s]", targetDependency),
@@ -763,7 +864,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
 
             try {
                 return installExtension(extension, rewrittenExtension, dependency, namespace, null,
-                    Collections.emptyMap());
+                    new ExtensionPlanContext(), null);
             } catch (Exception e) {
                 throw new InstallException("Failed to resolve extension", e);
             }
@@ -848,7 +949,8 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      * @param dependency indicate if the extension is installed as a dependency
      * @param namespace the namespace where to install the extension
      * @param initialDependency the initial dependency used to resolve the extension
-     * @param managedDependencies the managed dependencies
+     * @param extensionContext the current extension context
+     * @param parents the parents extensions (which triggered this extension install)
      * @return the install plan node for the provided extension
      * @throws InstallException error when trying to install provided extension
      * @throws IncompatibleVersionConstraintException
@@ -857,7 +959,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
      */
     private ModifableExtensionPlanNode installExtension(Extension sourceExtension, Extension rewrittenExtension,
         boolean dependency, String namespace, ExtensionDependency initialDependency,
-        Map<String, ExtensionDependency> managedDependencies) throws InstallException, ResolveException,
+        ExtensionPlanContext extensionContext, Set<String> parents) throws InstallException, ResolveException,
         IncompatibleVersionConstraintException, UninstallException, NamespaceNotAllowedException
     {
         boolean allowed = isNamespaceAllowed(rewrittenExtension, namespace);
@@ -868,7 +970,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
                 if (getRequest().isRootModificationsAllowed()) {
                     // Try to install it on root namespace
                     return installExtension(sourceExtension, rewrittenExtension, dependency, null, initialDependency,
-                        managedDependencies);
+                        extensionContext, parents);
                 }
             }
 
@@ -887,7 +989,7 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
             if (checkRootExtension(rewrittenExtension)) {
                 // Restart install on root
                 return installExtension(sourceExtension, rewrittenExtension, dependency, null, initialDependency,
-                    managedDependencies);
+                    extensionContext, parents);
             }
         }
 
@@ -948,42 +1050,8 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
             this.progressManager.startStep(this);
 
             // Check dependencies
-            Collection<? extends ExtensionDependency> dependencies = rewrittenExtension.getDependencies();
-
-            List<ModifableExtensionPlanNode> children = null;
-            if (!dependencies.isEmpty()) {
-                this.progressManager.pushLevelProgress(dependencies.size() + 1, this);
-
-                try {
-                    children = new ArrayList<>();
-                    for (ExtensionDependency extensionDependency : dependencies) {
-                        this.progressManager.startStep(this);
-
-                        // Replace with managed dependency if any
-                        extensionDependency =
-                            ExtensionUtils.getDependency(extensionDependency, managedDependencies, rewrittenExtension);
-
-                        // Try installing recommended version (if any)
-                        boolean valid = false;
-                        ExtensionDependency recommendedDependency = ExtensionUtils
-                            .getRecommendedDependency(extensionDependency, this.configuration, this.factory);
-                        if (recommendedDependency != null) {
-                            valid = installOptionalExtensionDependency(recommendedDependency, namespace, children,
-                                ExtensionUtils.append(managedDependencies, rewrittenExtension));
-                        }
-
-                        // If recommended version is invalid, try the one provided by the extension
-                        if (!valid) {
-                            installExtensionDependency(extensionDependency, namespace, children,
-                                ExtensionUtils.append(managedDependencies, rewrittenExtension));
-                        }
-
-                        this.progressManager.endStep(this);
-                    }
-                } finally {
-                    this.progressManager.popLevelProgress(this);
-                }
-            }
+            List<ModifableExtensionPlanNode> children =
+                installExtensionDependencies(rewrittenExtension, namespace, extensionContext, parents);
 
             this.progressManager.endStep(this);
 
@@ -1015,6 +1083,66 @@ public abstract class AbstractInstallPlanJob<R extends ExtensionRequest> extends
         } finally {
             this.progressManager.popLevelProgress(this);
         }
+    }
+
+    private List<ModifableExtensionPlanNode> installExtensionDependencies(Extension extension, String namespace,
+        ExtensionPlanContext extensionContext, Set<String> parents)
+        throws InstallException, IncompatibleVersionConstraintException, ResolveException
+    {
+        Collection<? extends ExtensionDependency> dependencies = extension.getDependencies();
+
+        List<ModifableExtensionPlanNode> children = null;
+        if (!dependencies.isEmpty()) {
+            parents = ExtensionUtils.append(parents, extension.getId().getId());
+
+            this.progressManager.pushLevelProgress(dependencies.size() + 1, this);
+
+            try {
+                children = new ArrayList<>();
+                for (ExtensionDependency extensionDependency : dependencies) {
+                    this.progressManager.startStep(this);
+
+                    if (parents.contains(extensionDependency.getId())) {
+                        // In case of cross dependency just ignore it
+                        continue;
+                    }
+
+                    // Is ignored
+                    if (this.configuration.isIgnoredDependency(extensionDependency)) {
+                        continue;
+                    }
+
+                    // Replace with managed dependency if any
+                    extensionDependency = extensionContext.getDependency(extensionDependency, extension);
+
+                    // Is excluded
+                    if (extensionContext.isExcluded(extensionDependency)) {
+                        continue;
+                    }
+
+                    // Try installing recommended version (if any)
+                    boolean valid = false;
+                    ExtensionDependency recommendedDependency =
+                        ExtensionUtils.getRecommendedDependency(extensionDependency, this.configuration, this.factory);
+                    if (recommendedDependency != null) {
+                        valid = installOptionalExtensionDependency(recommendedDependency, namespace, children,
+                            new ExtensionPlanContext(extensionContext, extension), parents);
+                    }
+
+                    // If recommended version is invalid, try the one provided by the extension
+                    if (!valid) {
+                        installExtensionDependency(extensionDependency, namespace, children,
+                            new ExtensionPlanContext(extensionContext, extension), parents);
+                    }
+
+                    this.progressManager.endStep(this);
+                }
+            } finally {
+                this.progressManager.popLevelProgress(this);
+            }
+        }
+
+        return children;
     }
 
     private Extension checkInstalledExtension(Extension extension, String namespace) throws InstallException

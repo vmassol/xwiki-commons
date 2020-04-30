@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-pom</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
     <relativePath>../xwiki-commons-pom</relativePath>
   </parent>
   <artifactId>xwiki-commons-core</artifactId>
@@ -41,26 +41,29 @@
     <module>xwiki-commons-blame</module>
     <module>xwiki-commons-cache</module>
     <module>xwiki-commons-classloader</module>
+    <module>xwiki-commons-collection</module>
     <module>xwiki-commons-component</module>
     <module>xwiki-commons-configuration</module>
     <module>xwiki-commons-context</module>
     <module>xwiki-commons-crypto</module>
+    <module>xwiki-commons-diff</module>
+    <module>xwiki-commons-displayer</module>
     <module>xwiki-commons-environment</module>
     <module>xwiki-commons-extension</module>
     <module>xwiki-commons-filter</module>
-    <module>xwiki-commons-repository</module>
     <module>xwiki-commons-groovy</module>
     <module>xwiki-commons-job</module>
     <module>xwiki-commons-logging</module>
     <module>xwiki-commons-management</module>
     <module>xwiki-commons-observation</module>
     <module>xwiki-commons-properties</module>
+    <module>xwiki-commons-repository</module>
     <module>xwiki-commons-script</module>
     <module>xwiki-commons-stability</module>
     <module>xwiki-commons-text</module>
     <module>xwiki-commons-velocity</module>
     <module>xwiki-commons-xml</module>
-    <module>xwiki-commons-diff</module>
+    <module>xwiki-commons-xstream</module>
   </modules>
   <build>
     <pluginManagement>
@@ -154,6 +157,11 @@
             {
               "revapi": {
                 "ignore" : [
+                  {
+                    "code": "java.class.removed",
+                    "old": "class org.xwiki.velocity.tools.CollectionsTool",
+                    "justification": "Not a Breakage. Moved to Legacy."
+                  }
                   // Add more ignores below...
                 ]
               }
@@ -161,26 +169,24 @@
           ]]></analysisConfiguration>
         </configuration>
       </plugin>
-      <!-- Verify that unit tests don't output anything to stdout/stderr -->
+      <!-- Used to automatically register our custom JUnit5 Extensions using the service loader mechanism.
+           We also need to have the JAR containing our extensions visible to JUnit5's ClassLoader. This is
+           done here and not in the top level pom.xml, as otherwise it would cause a cyclic dependency.
+      -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <systemProperties combine.children="append">
-            <!-- This property makes it simple for some module to exclude the check (for example for functional
-                 tests) -->
-            <property>
-              <name>xwiki.surefire.captureconsole.skip</name>
-              <value>${xwiki.surefire.captureconsole.skip}</value>
-            </property>
-          </systemProperties>
-          <properties>
-            <property>
-              <name>listener</name>
-              <value>org.xwiki.test.CaptureConsoleRunListener</value>
-            </property>
-          </properties>
-        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>org.xwiki.commons</groupId>
+            <artifactId>xwiki-commons-tool-test-simple</artifactId>
+            <version>${project.version}</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
         <dependencies>
           <dependency>
             <groupId>org.xwiki.commons</groupId>

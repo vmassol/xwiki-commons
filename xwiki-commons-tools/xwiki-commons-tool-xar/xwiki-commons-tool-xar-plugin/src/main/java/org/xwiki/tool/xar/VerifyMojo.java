@@ -22,7 +22,11 @@ package org.xwiki.tool.xar;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -36,15 +40,20 @@ import org.xwiki.tool.xar.internal.XWikiDocument;
  * Perform various verifications of the XAR files in this project. Namely:
  * <ul>
  *   <li>ensure that the encoding is UTF8</li>
- *   <li>ensure that pages all have a parent (except for Main.WebHome)</li>
+ *   <li>(optional) ensure that all pages have a parent (except for {@code Main.WebHome})</li>
  *   <li>ensure that the author/contentAuthor/creator/attachment authors are {@code xwiki:XWiki.Admin}</li>
  *   <li>ensure that the version is {@code 1.1}</li>
  *   <li>ensure that comment is empty</li>
  *   <li>ensure that minor edit is false</li>
- *   <li>ensure that technical pages are hidden</li>
+ *   <li>ensure that technical pages are hidden. We consider by default that all pages are technical unless specified
+ *     otherwise</li>
  *   <li>ensure that the default language is set properly</li>
  *   <li>ensure titles follow any defined rules (when defined by the user)</li>
  *   <li>ensure that Translations pages are using the plain/1.0 syntax</li>
+ *   <li>ensure that Translations pages don't have a GLOBAL or USER visibility (USER makes no sense and GLOBAL would
+ *       require Programming Rights, which is an issue in farm-based use cases)</li>
+ *   <li>ensure that attachments have a mimetype set. If the mimetype is missing then the attachment won't be
+ *       filterable in the attachment view in Page Index.</li>
  * </ul>
  *
  * @version $Id$
@@ -65,6 +74,34 @@ public class VerifyMojo extends AbstractVerifyMojo
      */
     @Parameter(property = "xar.verify.skip", defaultValue = "false")
     private boolean skip;
+
+    /**
+     * Disables the translations visibility check.
+     *
+     * @since 4.3M1
+     */
+    @Parameter(property = "xar.verify.translationVisibility.skip", defaultValue = "false")
+    private boolean translationVisibilitySkip;
+
+    /**
+     * Disables the empty parent check. This check is turned off by default since the parent concept has been
+     * replaced by the Nested Spaces one.
+     *
+     * @since 11.10.3
+     * @since 12.0RC1
+     */
+    @Parameter(property = "xar.verify.emptyParent.skip", defaultValue = "true")
+    private boolean emptyParentSkip;
+
+    /**
+     * Defines expectations for the Title field of pages.
+     *
+     * @since 7.3RC1
+     */
+    @Parameter(property = "xar.verify.titles")
+    private Properties titles;
+
+    private Map<Pattern, Pattern> titlePatterns;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
@@ -88,7 +125,7 @@ public class VerifyMojo extends AbstractVerifyMojo
         for (File file : xmlFiles) {
             String parentName = file.getParentFile().getName();
             XWikiDocument xdoc = getDocFromXML(file);
-            List<String> errors = new ArrayList<String>();
+            List<String> errors = new ArrayList<>();
 
             // Verification 1: Verify Encoding is UTF8
             if (!xdoc.getEncoding().equals("UTF-8")) {
@@ -103,10 +140,12 @@ public class VerifyMojo extends AbstractVerifyMojo
                     AUTHOR, xdoc.getContentAuthor()));
             verifyAuthor(errors, xdoc.getCreator(), String.format("Creator must be [%s] but was [%s]",
                 AUTHOR, xdoc.getCreator()));
-            verifyAttachmentAuthors(errors, xdoc.getAttachmentAuthors());
+            verifyAttachmentAuthors(errors, xdoc.getAttachmentData());
 
             // Verification 3: Check for orphans, except for Main.WebHome since it's the topmost document
-            if (StringUtils.isEmpty(xdoc.getParent()) && !xdoc.getReference().equals("Main.WebHome")) {
+            if (!this.emptyParentSkip && StringUtils.isEmpty(xdoc.getParent())
+                && !xdoc.getReference().equals("Main.WebHome"))
+            {
                 errors.add("Parent must not be empty");
             }
 
@@ -132,8 +171,8 @@ public class VerifyMojo extends AbstractVerifyMojo
                     xdoc.getDefaultLanguage()));
             }
 
-            // Verification 8: Verify that all technical pages are hidden
-            if (isTechnicalPage(file.getName()) && !xdoc.isHidden()) {
+            // Verification 8: Verify that all technical pages are hidden (except for visible technical pages).
+            if (!isContentPage(file.getPath()) && !isVisibleTechnicalPage(file.getPath()) && !xdoc.isHidden()) {
                 errors.add("Technical documents must be hidden");
             }
 
@@ -147,6 +186,25 @@ public class VerifyMojo extends AbstractVerifyMojo
             if (xdoc.containsTranslations() && !xdoc.getSyntaxId().equals(SYNTAX_PLAIN)) {
                 errors.add(String.format("[%s] ([%s]) page must use a [%s] syntax", file.getName(),
                     xdoc.getReference(), SYNTAX_PLAIN));
+            }
+
+            // Verification 11: Verify that Translations documents don't use GLOBAL or USER visibility
+            if (!translationVisibilitySkip && xdoc.containsTranslations()) {
+                for (String visibility : xdoc.getTranslationVisibilities()) {
+                    if (visibility.equals("USER") || visibility.equals("GLOBAL")) {
+                        errors.add(String.format("[%s] ([%s]) page contains a translation using a wrong visibility "
+                            + "[%s]. Consider using a [WIKI] visibility.", file.getName(), xdoc.getReference(),
+                            visibility));
+                    }
+                }
+            }
+
+            // Verification 12: Verify that  attachments have a mimetype set.
+            verifyAttachmentMimetypes(errors, xdoc.getAttachmentData());
+
+            // Verification 13: Verify that date fields are not set.
+            if (!skipDates) {
+                verifyDateFields(errors, xdoc);
             }
 
             // Display errors
@@ -172,17 +230,83 @@ public class VerifyMojo extends AbstractVerifyMojo
         }
     }
 
+    @Override
+    protected void initializePatterns()
+    {
+        super.initializePatterns();
+
+        // Transform title expectations into Patterns
+        Map<Pattern, Pattern> patterns = new HashMap<>();
+        for (String key : this.titles.stringPropertyNames()) {
+            patterns.put(Pattern.compile(key), Pattern.compile(this.titles.getProperty(key)));
+        }
+        this.titlePatterns = patterns;
+    }
+
+    private String getTitlePatternRuleforPage(String documentReference)
+    {
+        for (Map.Entry<Pattern, Pattern> entry : this.titlePatterns.entrySet()) {
+            if (entry.getKey().matcher(documentReference).matches()) {
+                return entry.getValue().pattern();
+            }
+        }
+        return null;
+    }
+
+    private void verifyDateFields(List<String> errors, XWikiDocument xdoc)
+    {
+        if (!skipDatesDocumentList.contains(xdoc.getReference())) {
+            if (xdoc.isDatePresent()) {
+                errors.add("'date' field is present");
+            }
+
+            if (xdoc.isContentUpdateDatePresent()) {
+                errors.add("'contentUpdateDate' field is present");
+            }
+
+            if (xdoc.isCreationeDatePresent()) {
+                errors.add("'creationDate' field is present");
+            }
+
+            if (xdoc.isAttachmentDatePresent()) {
+                errors.add("'attachment/date' field is present");
+            }
+        }
+    }
+
     private void verifyAuthor(List<String> errors, String author, String message)
     {
-        if (!author.equals(AUTHOR)) {
+        if (!AUTHOR.equals(author)) {
             errors.add(message);
         }
     }
 
-    private void verifyAttachmentAuthors(List<String> errors, List<String> authors)
+    private void verifyAttachmentAuthors(List<String> errors, List<Map<String, String>> attachmentData)
     {
-        for (String author : authors) {
-            verifyAuthor(errors, author, String.format("Attachment author must [%s] but was [%s]", AUTHOR, author));
+        for (Map<String, String> data : attachmentData) {
+            String author = data.get("author");
+            verifyAuthor(errors, author, String.format("Attachment author must be [%s] but was [%s]", AUTHOR, author));
         }
     }
+
+    private void verifyAttachmentMimetypes(List<String> errors, List<Map<String, String>> attachmentData)
+    {
+        for (Map<String, String> data : attachmentData) {
+            String mimetype = data.get("mimetype");
+            if (mimetype == null) {
+                errors.add(String.format("Missing mimetype for attachment [%s]", data.get("filename")));
+            }
+        }
+    }
+
+    private boolean isTitlesMatching(String documentReference, String title)
+    {
+        for (Map.Entry<Pattern, Pattern> entry : this.titlePatterns.entrySet()) {
+            if (entry.getKey().matcher(documentReference).matches() && !entry.getValue().matcher(title).matches()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

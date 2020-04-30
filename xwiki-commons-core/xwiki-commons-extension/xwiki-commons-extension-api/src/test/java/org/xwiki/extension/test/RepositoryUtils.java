@@ -35,6 +35,7 @@ import org.reflections.scanners.ResourcesScanner;
 import org.reflections.util.ClasspathHelper;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.FilterBuilder;
+import org.xwiki.environment.Environment;
 
 /**
  * @version $Id$
@@ -45,37 +46,57 @@ public class RepositoryUtils
 
     protected static final String MAVEN2REPOSITORY_ID = "test-maven2";
 
-    protected final File permanentDirectory;
+    protected static final String MAVENUNKNWONREPOSITORY_ID = "test-mavenunknown";
 
-    protected final File temporaryDirectory;
+    protected File permanentDirectory;
 
-    protected final File extensionDirectory;
+    protected File temporaryDirectory;
 
-    protected final File localRepositoryRoot;
+    protected File extensionDirectory;
 
-    protected final File mavenRepositoryRoot;
+    protected File localRepositoryRoot;
 
-    protected final File maven2RepositoryRoot;
+    protected File mavenRepositoryRoot;
 
-    protected final File remoteRepositoryRoot;
+    protected File maven2RepositoryRoot;
 
-    protected final ExtensionPackager extensionPackager;
+    protected File mavenUnknownRepositoryRoot;
+
+    protected File remoteRepositoryRoot;
+
+    protected ExtensionPackager extensionPackager;
 
     public RepositoryUtils()
     {
+        initializeDirectories();
+    }
+
+    protected void initializeDirectories(Environment environment)
+    {
+        this.temporaryDirectory = environment.getTemporaryDirectory();
+        this.permanentDirectory = environment.getPermanentDirectory();
+
+        initializeDirectories();
+    }
+
+    protected void initializeDirectories()
+    {
         File testDirectory = new File("target/test-" + new Date().getTime()).getAbsoluteFile();
 
-        this.temporaryDirectory = new File(testDirectory, "temporary-dir");
+        if (this.temporaryDirectory == null) {
+            this.temporaryDirectory = new File(testDirectory, "temporary-dir");
+            this.permanentDirectory = new File(testDirectory, "permanent-dir");
+        }
 
-        this.permanentDirectory = new File(testDirectory, "permanent-dir");
         this.extensionDirectory = new File(this.permanentDirectory, "extension/");
         this.localRepositoryRoot = new File(this.extensionDirectory, "repository/");
 
         this.mavenRepositoryRoot = new File(testDirectory, "maven/");
         this.maven2RepositoryRoot = new File(testDirectory, "maven2/");
+        this.mavenUnknownRepositoryRoot = new File(testDirectory, "mavenunknown/");
         this.remoteRepositoryRoot = new File(testDirectory, "remote/");
 
-        Map<String, RepositorySerializer> repositories = new HashMap<String, RepositorySerializer>();
+        Map<String, RepositorySerializer> repositories = new HashMap<>();
         repositories.put(null, new DefaultRepositorySerializer(getRemoteRepository()));
         repositories.put("remote", repositories.get(null));
         repositories.put("local", new DefaultRepositorySerializer(getLocalRepository()));
@@ -88,6 +109,7 @@ public class RepositoryUtils
         System.setProperty("extension.repository.maven", getMavenRepository().getAbsolutePath());
         System.setProperty("extension.repository.maven2", getMaven2Repository().getAbsolutePath());
         System.setProperty("extension.repository.remote", getRemoteRepository().getAbsolutePath());
+        System.setProperty("extension.repository.mavenunknown", getRemoteRepository().getAbsolutePath());
     }
 
     public File getPermanentDirectory()
@@ -125,12 +147,22 @@ public class RepositoryUtils
         return this.maven2RepositoryRoot;
     }
 
+    public File getMavenUnknownRepository()
+    {
+        return this.mavenUnknownRepositoryRoot;
+    }
+
     public String getMavenRepositoryId()
     {
         return MAVENREPOSITORY_ID;
     }
 
     public String getMaven2RepositoryId()
+    {
+        return MAVEN2REPOSITORY_ID;
+    }
+
+    public String getMavenUnknown()
     {
         return MAVEN2REPOSITORY_ID;
     }
@@ -147,6 +179,7 @@ public class RepositoryUtils
         copyResourceFolder(getLocalRepository(), "repository.local");
         copyResourceFolder(getMavenRepository(), "repository.maven");
         copyResourceFolder(getMaven2Repository(), "repository.maven2");
+        copyResourceFolder(getMavenUnknownRepository(), "repository.mavenunknown");
 
         // generated extensions
 

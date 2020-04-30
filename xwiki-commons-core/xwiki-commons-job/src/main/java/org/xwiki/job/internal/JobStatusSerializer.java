@@ -25,17 +25,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-import javax.xml.parsers.ParserConfigurationException;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
+import org.xwiki.component.annotation.Component;
 import org.xwiki.job.event.status.JobStatus;
-import org.xwiki.job.internal.xstream.SafeXStream;
-
-import com.thoughtworks.xstream.XStream;
+import org.xwiki.xstream.internal.SafeXStream;
 
 /**
  * Serialize/unserialize tool for job statuses.
@@ -43,27 +45,20 @@ import com.thoughtworks.xstream.XStream;
  * @version $Id$
  * @since 5.2M2
  */
+@Component(roles = JobStatusSerializer.class)
+@Singleton
 public class JobStatusSerializer
 {
     /**
      * Encoding used for file content and names.
      */
-    private static final String DEFAULT_ENCODING = "UTF-8";
+    private static final Charset DEFAULT_ENCODING = StandardCharsets.UTF_8;
 
     /**
      * Used to serialize and unserialize status.
      */
-    private XStream xstream;
-
-    /**
-     * Default constructor.
-     *
-     * @throws ParserConfigurationException when failing to initialize
-     */
-    public JobStatusSerializer() throws ParserConfigurationException
-    {
-        this.xstream = new SafeXStream();
-    }
+    @Inject
+    private SafeXStream xstream;
 
     /**
      * @param status the status to serialize
@@ -74,17 +69,28 @@ public class JobStatusSerializer
     {
         File tempFile = File.createTempFile(file.getName(), ".tmp");
 
-        FileOutputStream stream = FileUtils.openOutputStream(tempFile);
-
-        try {
+        try (FileOutputStream stream = FileUtils.openOutputStream(tempFile)) {
             write(status, stream);
-        } finally {
-            IOUtils.closeQuietly(stream);
         }
 
         // Copy the file to its final destination
         file.mkdirs();
-        Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        for (int i = 0; i < 10; ++i) {
+            try {
+                Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                // Stop the retry loop if it succeeded
+                break;
+            } catch (FileAlreadyExistsException e) {
+                // Yes it sounds pretty weird but it can happen so we try 10 times before giving up
+                // Wait a bit before retrying
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ei) {
+                    throw e;
+                }
+            }
+        }
     }
 
     /**
@@ -95,7 +101,7 @@ public class JobStatusSerializer
     public void write(JobStatus status, OutputStream stream) throws IOException
     {
         OutputStreamWriter writer = new OutputStreamWriter(stream, DEFAULT_ENCODING);
-        writer.write("<?xml version=\"1.0\" encoding=\"" + DEFAULT_ENCODING + "\"?>\n");
+        writer.write("<?xml version=\"1.0\" encoding=\"" + DEFAULT_ENCODING.name() + "\"?>\n");
         this.xstream.toXML(status, writer);
         writer.flush();
     }

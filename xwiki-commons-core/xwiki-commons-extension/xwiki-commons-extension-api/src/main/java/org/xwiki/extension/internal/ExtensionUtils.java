@@ -26,14 +26,18 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.xwiki.extension.CoreExtension;
+import org.xwiki.extension.DefaultExtensionDependency;
 import org.xwiki.extension.Extension;
 import org.xwiki.extension.ExtensionDependency;
 import org.xwiki.extension.ExtensionManagerConfiguration;
+import org.xwiki.extension.ExtensionPattern;
 import org.xwiki.extension.InstalledExtension;
 import org.xwiki.extension.LocalExtension;
 import org.xwiki.extension.MutableExtension;
@@ -81,36 +85,14 @@ public final class ExtensionUtils
                 recommendedVersionConstraint = dependency.getVersionConstraint().merge(recommendedVersionConstraint);
 
                 return factory.getExtensionDependency(dependency.getId(), recommendedVersionConstraint,
-                    dependency.isOptional(), dependency.getProperties());
+                    dependency.isOptional(), dependency.getExclusions(), dependency.getRepositories(),
+                    dependency.getProperties());
             } catch (IncompatibleVersionConstraintException e) {
                 // Not compatible, don't use the recommended version
             }
         }
 
         return null;
-    }
-
-    /**
-     * @param dependency the initial dependency
-     * @param managedDependencies the managed dependencies
-     * @param extension the extension with the passed dependency
-     * @return the actual dependency to resolve
-     */
-    public static ExtensionDependency getDependency(ExtensionDependency dependency,
-        Map<String, ExtensionDependency> managedDependencies, Extension extension)
-    {
-        ExtensionDependency managedDependency = managedDependencies.get(dependency.getId());
-
-        // If the dependency does not have any version try to find it in extension managed dependencies
-        if (managedDependency == null && dependency.getVersionConstraint() == null) {
-            for (ExtensionDependency extensionManagedDependency : extension.getManagedDependencies()) {
-                if (extensionManagedDependency.getId().equals(dependency.getId())) {
-                    managedDependency = extensionManagedDependency;
-                }
-            }
-        }
-
-        return managedDependency != null ? managedDependency : dependency;
     }
 
     /**
@@ -129,6 +111,39 @@ public final class ExtensionUtils
         }
 
         return newManagedDependencies;
+    }
+
+    /**
+     * @param readonly the exclusions
+     * @param extension the extension for which to append extension exclusions
+     * @return the new map of managed dependencies
+     * @since 12.2
+     */
+    public static List<ExtensionPattern> appendExclusions(List<ExtensionPattern> readonly,
+        ExtensionDependency dependency)
+    {
+        List<ExtensionPattern> writable = readonly != null ? new ArrayList<>(readonly) : new ArrayList<>();
+
+        writable.addAll(dependency.getExclusions());
+
+        return writable;
+    }
+
+    /**
+     * "add" an object in a readonly {@link Set}. This method return a new Set which contains the passed set and object
+     * to add.
+     * 
+     * @param readonly the {@link Set} to add an object to
+     * @param obj the object to add
+     * @return the new {@link Set}
+     */
+    public static <T> Set<T> append(Set<T> readonly, T obj)
+    {
+        Set<T> writable = readonly != null ? new HashSet<>(readonly) : new HashSet<>();
+
+        writable.add(obj);
+
+        return writable;
     }
 
     /**

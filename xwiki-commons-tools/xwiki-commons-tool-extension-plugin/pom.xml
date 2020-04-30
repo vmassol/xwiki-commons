@@ -24,17 +24,18 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.xwiki.commons</groupId>
-    <artifactId>xwiki-commons-tools</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <artifactId>xwiki-commons-tool-pom</artifactId>
+    <version>12.4-SNAPSHOT</version>
+    <relativePath>../xwiki-commons-tool-pom</relativePath>
   </parent>
   <artifactId>xwiki-commons-tool-extension-plugin</artifactId>
   <name>XWiki Commons - Tools - Extension Plugin</name>
   <packaging>maven-plugin</packaging>
   <description>
     A Maven plugin providing various XWiki Extension related tools
-   </description>
+  </description>
   <properties>
-    <xwiki.jacoco.instructionRatio>0.01</xwiki.jacoco.instructionRatio>
+    <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
   </properties>
   <dependencies>
     <dependency>
@@ -100,51 +101,37 @@
           <goalPrefix>extension</goalPrefix>
         </configuration>
       </plugin>
+      <plugin>
+        <!-- Exclude some classes from checkstyle till we fix the violations -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <executions>
+          <execution>
+            <!-- Specify the "default" execution id so that the "blocker" one is always executed -->
+            <id>default</id>
+            <configuration>
+              <excludes>
+                **/ExtensionMojoHelper.java,
+                **/MavenBuildExtensionRepositor.java,
+                **/ExtensionMojoCoreExtensionRepository.java,
+                **/ExtensionArtifact.java,
+                **/MavenBuildExtensionRepository.java
+              </excludes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
   <profiles>
     <profile>
-      <id>integration-tests</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-invoker-plugin</artifactId>
-            <configuration>
-              <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
-              <settingsFile>src/it/settings.xml</settingsFile>
-              <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
-              <postBuildHookScript>verify</postBuildHookScript>
-              <goals>
-                <goal>clean</goal>
-                <goal>package</goal>
-              </goals>
-              <showErrors>true</showErrors>
-              <!-- Don't display debug logs by default because it takes more time and one test asserts that there's no
-                   extra debug log displayed since we don't want that when we execute this plugin on projects -->
-              <debug>false</debug>
-            </configuration>
-            <executions>
-              <execution>
-                <id>integration-test</id>
-                <goals>
-                  <goal>install</goal>
-                  <goal>run</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
       <id>clover</id>
       <build>
         <plugins>
-          <!-- Override the skip done at the level of commons-tools since that's need when running with the clover
+          <!-- Override the skip done at the level of commons-tools since that's needed when running with the clover
                profile -->
           <plugin>
-            <groupId>com.atlassian.maven.plugins</groupId>
+            <groupId>org.openclover</groupId>
             <artifactId>clover-maven-plugin</artifactId>
             <configuration>
               <skip>false</skip>

@@ -23,6 +23,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 
+import org.xwiki.stability.Unstable;
+
 /**
  * Describe a property in a bean.
  *
@@ -93,4 +95,52 @@ public interface PropertyDescriptor
      * @since 4.2M1
      */
     Field getField();
+
+    /**
+     * @return indicates if the property is deprecated.
+     * @since 10.10RC1
+     */
+    default boolean isDeprecated()
+    {
+        return false;
+    }
+
+    /**
+     * @return indicates if the property is advanced.
+     * @since 10.10RC1
+     */
+    default boolean isAdvanced()
+    {
+        return false;
+    }
+
+    /**
+     * @return the hierarchy of groups.
+     * @since 10.11RC1
+     */
+    default PropertyGroupDescriptor getGroupDescriptor()
+    {
+        return new PropertyGroupDescriptor(null);
+    }
+
+    /**
+     * @return the type used when displaying the property.
+     * @since 11.0
+     */
+    @Unstable
+    default Type getDisplayType()
+    {
+        return getPropertyType();
+    }
+
+    /**
+     * @return whether the property should be displayed in UIs or not. For example the WYSIWYG editor
+     *         uses it to decide whether to display or not a Macro property in the Macro editor UI.
+     * @since 12.4RC1
+     */
+    @Unstable
+    default boolean isDisplayHidden()
+    {
+        return false;
+    }
 }

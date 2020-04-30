@@ -19,6 +19,7 @@
  */
 package org.xwiki.extension.repository.internal.local;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -29,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.component.manager.ComponentLookupException;
@@ -152,7 +154,9 @@ public class DefaultLocalExtensionRepository extends AbstractCachedExtensionRepo
     {
         DefaultLocalExtension localExtension = new DefaultLocalExtension(this, extension);
 
-        localExtension.setFile(this.storage.getNewExtensionFile(localExtension.getId(), localExtension.getType()));
+        if (StringUtils.isNotEmpty(localExtension.getType())) {
+            localExtension.setFile(this.storage.getNewExtensionFile(localExtension.getId(), localExtension.getType()));
+        }
 
         return localExtension;
     }
@@ -172,12 +176,15 @@ public class DefaultLocalExtensionRepository extends AbstractCachedExtensionRepo
             try {
                 localExtension = createExtension(extension);
 
-                InputStream is = extension.getFile().openStream();
-                try {
-                    FileUtils.copyInputStreamToFile(is, localExtension.getFile().getFile());
-                } finally {
-                    is.close();
+                // Store the extension file if any
+                DefaultLocalExtensionFile extensionFile = localExtension.getFile();
+                if (extensionFile != null) {
+                    File targetFile = localExtension.getFile().getFile();
+                    InputStream is = extension.getFile().openStream();
+                    FileUtils.copyInputStreamToFile(is, targetFile);
                 }
+
+                // Store the extension descriptor
                 this.storage.saveDescriptor(localExtension);
 
                 // Cache extension

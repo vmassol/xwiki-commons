@@ -20,7 +20,6 @@
 package org.xwiki.xml.internal.html;
 
 import java.io.Reader;
-import java.io.StringReader;
 import java.util.Arrays;
 
 import javax.inject.Inject;
@@ -39,8 +38,6 @@ import org.htmlcleaner.TagTransformation;
 import org.htmlcleaner.XWikiDOMSerializer;
 import org.w3c.dom.Document;
 import org.xwiki.component.annotation.Component;
-import org.xwiki.component.phase.Initializable;
-import org.xwiki.component.phase.InitializationException;
 import org.xwiki.context.Execution;
 import org.xwiki.context.ExecutionContext;
 import org.xwiki.xml.html.HTMLCleaner;
@@ -57,7 +54,7 @@ import org.xwiki.xml.html.filter.HTMLFilter;
  */
 @Component
 @Singleton
-public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
+public class DefaultHTMLCleaner implements HTMLCleaner
 {
     /**
      * {@link HTMLFilter} for filtering html lists.
@@ -102,25 +99,16 @@ public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
     @Named("link")
     private HTMLFilter linkFilter;
 
+    /**
+     * Remove control characters.
+     */
+    @Inject
+    @Named("controlcharacters")
+    // TODO: remove when upgrading to HTMLClener 2.23
+    private HTMLFilter controlFilter;
+
     @Inject
     private Execution execution;
-
-    @Override
-    public void initialize() throws InitializationException
-    {
-        // The clean method below is thread safe. However it seems that DOMOutputter.output() is not fully thread safe
-        // since it causes the following exception on the first time it's called from different threads:
-        //  Caused by: org.jdom.JDOMException: Reflection failed while creating new JAXP document:
-        //  duplicate class definition: org/apache/xerces/jaxp/DocumentBuilderFactoryImpl
-        //  at org.jdom.adapters.JAXPDOMAdapter.createDocument(JAXPDOMAdapter.java:191)
-        //  at org.jdom.adapters.AbstractDOMAdapter.createDocument(AbstractDOMAdapter.java:133)
-        //  at org.jdom.output.DOMOutputter.createDOMDocument(DOMOutputter.java:208)
-        //  at org.jdom.output.DOMOutputter.output(DOMOutputter.java:127)
-        // Since this only happens once, we call it first here at initialization time (since there's no thread
-        // contention at that time). Note: This email thread seems to say it's thread safe but that's not what we see
-        // here: http:osdir.com/ml/text.xml.xforms.chiba.devel/2006-09/msg00025.html
-        clean(new StringReader(""));
-    }
 
     @Override
     public Document clean(Reader originalHtmlContent)
@@ -175,7 +163,7 @@ public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
             cleanedNode.setDocType(new DoctypeToken("html", "PUBLIC", "-//W3C//DTD XHTML 1.0 Strict//EN",
                 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"));
             result =
-                new XWikiDOMSerializer(cleanerProperties, false).createDOM(getAvailableDocumentBuilder(), cleanedNode);
+                new XWikiDOMSerializer(cleanerProperties).createDOM(getAvailableDocumentBuilder(), cleanedNode);
         } catch (ParserConfigurationException ex) {
             throw new RuntimeException("Error while serializing TagNode into w3c dom.", ex);
         }
@@ -193,6 +181,7 @@ public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
     {
         HTMLCleanerConfiguration configuration = new DefaultHTMLCleanerConfiguration();
         configuration.setFilters(Arrays.asList(
+            this.controlFilter,
             this.bodyFilter,
             this.listItemFilter,
             this.listFilter,
@@ -232,11 +221,33 @@ public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
 
         // Set Cleaner transformations
         defaultProperties.setCleanerTransformations(getDefaultCleanerTransformations(configuration));
-        
+
+        // Don't convert special HTML entities (i.e. &ocirc;, &permil;, &times;) with unicode characters they represent.
+        defaultProperties.setTranslateSpecialEntities(false);
+
+        // Use character references rather than entity references if needed (for instance if you need to parse the
+        // output as XML)
+        param = configuration.getParameters().get(HTMLCleanerConfiguration.USE_CHARACTER_REFERENCES);
+        boolean useCharacterReferences = (param != null) ? Boolean.parseBoolean(param) : false;
+        defaultProperties.setTransResCharsToNCR(useCharacterReferences);
+
         // By default, we are cleaning XHTML 1.0 code, not HTML 5.
         // Note: Tests are broken if we don't set the version 4, meaning that supporting HTML5 requires some work.
         // TODO: handle HTML5 correctly (see: https://jira.xwiki.org/browse/XCOMMONS-901)
         defaultProperties.setHtmlVersion(4);
+
+        // We trim values by default for all attributes but the input value attribute.
+        // The only way to currently do that is to switch off this flag, and to create a dedicated TagTransformation.
+        // See TrimAttributeCleanerTransformation for more information.
+        defaultProperties.setTrimAttributeValues(false);
+
+        // This flag is used by HtmlCleaner to know if the XML should be escaped. In our case we never want it
+        // to be escaped when parsing. We escape what's needed during serialization.
+        defaultProperties.setRecognizeUnicodeChars(false);
+
+        param = configuration.getParameters().get(HTMLCleanerConfiguration.TRANSLATE_SPECIAL_ENTITIES);
+        boolean translateSpecialEntities = (param != null) ? Boolean.parseBoolean(param) : false;
+        defaultProperties.setTranslateSpecialEntities(translateSpecialEntities);
 
         return defaultProperties;
     }
@@ -248,9 +259,11 @@ public class DefaultHTMLCleaner implements HTMLCleaner, Initializable
      */
     private CleanerTransformations getDefaultCleanerTransformations(HTMLCleanerConfiguration configuration)
     {
-        CleanerTransformations defaultTransformations = new CleanerTransformations();
+        CleanerTransformations defaultTransformations = new TrimAttributeCleanerTransformations();
 
-        TagTransformation tt = new TagTransformation(HTMLConstants.TAG_B, HTMLConstants.TAG_STRONG, false);
+        // note that we do not care here to use a TrimAttributeTagTransformation, since the attributes are not preserved
+        TagTransformation tt = new TagTransformation(HTMLConstants.TAG_B,
+            HTMLConstants.TAG_STRONG, false);
         defaultTransformations.addTransformation(tt);
 
         tt = new TagTransformation(HTMLConstants.TAG_I, HTMLConstants.TAG_EM, false);

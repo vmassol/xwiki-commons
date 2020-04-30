@@ -25,6 +25,8 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 import org.xwiki.properties.PropertyDescriptor;
+import org.xwiki.properties.PropertyGroupDescriptor;
+import org.xwiki.stability.Unstable;
 
 /**
  * Default implementation for {@link PropertyDescriptor}.
@@ -80,6 +82,31 @@ public class DefaultPropertyDescriptor implements PropertyDescriptor
      * @see #getWriteMethod()
      */
     private Method writeMethod;
+
+    /**
+     * @see #isDeprecated()
+     */
+    private boolean deprecated;
+
+    /**
+     * @see #isAdvanced()
+     */
+    private boolean advanced;
+
+    /**
+     * @see #getGroupDescriptor()
+     */
+    private PropertyGroupDescriptor groupDescriptor;
+
+    /**
+     * @see #getDisplayType()
+     */
+    private Type displayType;
+
+    /**
+     * @see #isDisplayHidden()
+     */
+    private boolean displayHidden;
 
     @Override
     public String getId()
@@ -190,7 +217,7 @@ public class DefaultPropertyDescriptor implements PropertyDescriptor
     }
 
     /**
-     * @see org.xwiki.properties.PropertyDescriptor#getFied().
+     * @see org.xwiki.properties.PropertyDescriptor#getFied()
      * @param field the {@link Field}.
      */
     public void setField(Field field)
@@ -212,7 +239,7 @@ public class DefaultPropertyDescriptor implements PropertyDescriptor
     }
 
     /**
-     * @see org.xwiki.properties.PropertyDescriptor#getReadMethod().
+     * @see org.xwiki.properties.PropertyDescriptor#getReadMethod()
      * @param readMethod the read {@link Method}.
      */
     public void setReadMethod(Method readMethod)
@@ -227,7 +254,7 @@ public class DefaultPropertyDescriptor implements PropertyDescriptor
     }
 
     /**
-     * @see org.xwiki.properties.PropertyDescriptor#getWriteMethod().
+     * @see org.xwiki.properties.PropertyDescriptor#getWriteMethod()
      * @param writeMethod the write {@link Method}.
      */
     public void setWriteMethod(Method writeMethod)
@@ -239,5 +266,85 @@ public class DefaultPropertyDescriptor implements PropertyDescriptor
     public Method getWriteMethod()
     {
         return this.writeMethod;
+    }
+
+    @Override
+    public boolean isDeprecated()
+    {
+        return this.deprecated;
+    }
+
+    /**
+     * @param deprecated indicates if the parameter is deprecated
+     * @see #isDeprecated()
+     * @since 10.10RC1
+     */
+    public void setDeprecated(boolean deprecated)
+    {
+        this.deprecated = deprecated;
+    }
+
+    @Override
+    public boolean isAdvanced()
+    {
+        return this.advanced;
+    }
+
+    /**
+     * @param advanced indicates if the parameter is advanced
+     * @see #isAdvanced()
+     * @since 10.10RC1
+     */
+    public void setAdvanced(boolean advanced)
+    {
+        this.advanced = advanced;
+    }
+
+    @Override
+    public PropertyGroupDescriptor getGroupDescriptor()
+    {
+        return this.groupDescriptor;
+    }
+
+    /**
+     * @param groupDescriptor the hierarchy of groups
+     * @see #getGroupDescriptor()
+     * @since 10.11RC1
+     */
+    public void setGroupDescriptor(PropertyGroupDescriptor groupDescriptor)
+    {
+        this.groupDescriptor = groupDescriptor;
+    }
+
+    @Override
+    public Type getDisplayType()
+    {
+        return this.displayType;
+    }
+
+    /**
+     * @param displayType the type used when displaying the property.
+     * @see #getDisplayType()
+     * @since 11.0
+     */
+    public void setDisplayType(Type displayType)
+    {
+        this.displayType = displayType;
+    }
+
+    @Override
+    public boolean isDisplayHidden()
+    {
+        return this.displayHidden;
+    }
+
+    /**
+     * @param isDisplayHidden see {@link #isDisplayHidden()}
+     * @since 12.4RC1
+     */
+    @Unstable
+    public void setDisplayHidden(boolean isDisplayHidden)
+    {
+        this.displayHidden = isDisplayHidden;
     }
 }

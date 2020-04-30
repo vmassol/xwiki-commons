@@ -70,30 +70,19 @@ public class DefaultPatch<E> extends LinkedList<Delta<E>> implements Patch<E>
      */
     private Delta<E> toDelta(difflib.Delta<E> delta) throws DiffException
     {
-        Delta<E> newDelta;
-
-        switch (delta.getType()) {
-            case CHANGE:
-                newDelta = new ChangeDelta<E>(delta.getOriginal(), delta.getRevised());
-                break;
-            case DELETE:
-                newDelta = new DeleteDelta<E>(delta.getOriginal(), delta.getRevised());
-                break;
-            case INSERT:
-                newDelta = new InsertDelta<E>(delta.getOriginal(), delta.getRevised());
-                break;
-            default:
-                throw new DiffException(String.format("Failed to convert [%s] info [%s]. Unknown type [%s]", delta
-                    .getClass().getName(), Delta.class.getName(), delta.getType().toString()));
+        try {
+            return DeltaFactory
+                .createDelta(delta.getOriginal(), delta.getRevised(), Delta.Type.valueOf(delta.getType().name()));
+        } catch (IllegalArgumentException e) {
+            throw new DiffException(String.format("Failed to convert [%s] info [%s]. Unknown type [%s]", delta
+                .getClass().getName(), Delta.class.getName(), delta.getType().toString()), e);
         }
-
-        return newDelta;
     }
 
     @Override
     public List<E> apply(List<E> target) throws PatchException
     {
-        List<E> result = new LinkedList<E>(target);
+        List<E> result = new LinkedList<>(target);
         ListIterator<Delta<E>> it = listIterator(size());
         while (it.hasPrevious()) {
             Delta<E> delta = it.previous();
@@ -106,7 +95,7 @@ public class DefaultPatch<E> extends LinkedList<Delta<E>> implements Patch<E>
     @Override
     public List<E> restore(List<E> target) throws PatchException
     {
-        List<E> result = new LinkedList<E>(target);
+        List<E> result = new LinkedList<>(target);
         ListIterator<Delta<E>> it = listIterator(size());
         while (it.hasPrevious()) {
             Delta<E> delta = it.previous();

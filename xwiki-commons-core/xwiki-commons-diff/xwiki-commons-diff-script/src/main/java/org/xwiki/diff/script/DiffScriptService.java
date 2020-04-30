@@ -37,6 +37,7 @@ import org.xwiki.diff.MergeResult;
 import org.xwiki.diff.internal.DefaultDiffResult;
 import org.xwiki.diff.internal.DefaultMergeResult;
 import org.xwiki.script.service.ScriptService;
+import org.xwiki.script.service.ScriptServiceManager;
 
 /**
  * Provide script oriented APIs to do diff and merges.
@@ -45,10 +46,15 @@ import org.xwiki.script.service.ScriptService;
  * @since 4.1RC1
  */
 @Component
-@Named("diff")
+@Named(DiffScriptService.ROLEHINT)
 @Singleton
 public class DiffScriptService implements ScriptService
 {
+    /**
+     * The role hint of this component.
+     */
+    public static final String ROLEHINT = "diff";
+
     /**
      * The key under which the last encountered error is stored in the current execution context.
      */
@@ -66,19 +72,18 @@ public class DiffScriptService implements ScriptService
     @Inject
     private DiffManager diffManager;
 
-    /**
-     * The displayer oriented sub API.
-     */
     @Inject
-    @Named("diff.display")
-    private ScriptService diffDisplayScriptService;
+    private ScriptServiceManager scriptServiceManager;
 
     /**
-     * @return the display oriented API
+     * @param <S> the type of the {@link ScriptService}
+     * @param serviceName the name of the sub {@link ScriptService}
+     * @return the {@link ScriptService} or null of none could be found
      */
-    public ScriptService getDisplay()
+    @SuppressWarnings("unchecked")
+    public <S extends ScriptService> S get(String serviceName)
     {
-        return this.diffDisplayScriptService;
+        return (S) this.scriptServiceManager.get(DiffScriptService.ROLEHINT + '.' + serviceName);
     }
 
     /**
@@ -96,7 +101,7 @@ public class DiffScriptService implements ScriptService
         try {
             result = this.diffManager.diff(previous, next, configuration);
         } catch (DiffException e) {
-            result = new DefaultDiffResult<E>(previous, next);
+            result = new DefaultDiffResult<>(previous, next);
             result.getLog().error("Failed to execute diff", e);
         }
 
@@ -120,7 +125,7 @@ public class DiffScriptService implements ScriptService
         try {
             result = this.diffManager.merge(commonAncestor, next, current, configuration);
         } catch (MergeException e) {
-            result = new DefaultMergeResult<E>(commonAncestor, next, current);
+            result = new DefaultMergeResult<>(commonAncestor, next, current);
             result.getLog().error("Failed to execute merge", e);
         }
 

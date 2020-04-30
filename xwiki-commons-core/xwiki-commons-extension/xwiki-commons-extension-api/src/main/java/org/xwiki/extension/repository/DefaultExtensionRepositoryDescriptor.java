@@ -23,10 +23,10 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import com.google.common.base.Objects;
+import org.xwiki.stability.Unstable;
 
 /**
  * Default implementation of {@link ExtensionRepositoryDescriptor}.
@@ -54,7 +54,7 @@ public class DefaultExtensionRepositoryDescriptor implements ExtensionRepository
     /**
      * @see #getProperties()
      */
-    private Map<String, String> properties = new HashMap<String, String>();
+    private Map<String, String> properties = new HashMap<>();
 
     private transient int hashCode;
 
@@ -89,6 +89,25 @@ public class DefaultExtensionRepositoryDescriptor implements ExtensionRepository
         this.id = id;
         this.type = type;
         this.uri = uri;
+    }
+
+    /**
+     * @param id the unique identifier
+     * @param type the repository type (maven, xwiki, etc.)
+     * @param uri the repository address
+     * @param properties the properties
+     * @since 12.2
+     */
+    @Unstable
+    public DefaultExtensionRepositoryDescriptor(String id, String type, URI uri, Map<String, String> properties)
+    {
+        this.id = id;
+        this.type = type;
+        this.uri = uri;
+
+        if (properties != null) {
+            this.properties.putAll(properties);
+        }
     }
 
     @Override
@@ -141,7 +160,10 @@ public class DefaultExtensionRepositoryDescriptor implements ExtensionRepository
     public void setProperties(Map<String, String> properties)
     {
         this.properties.clear();
-        this.properties.putAll(properties);
+
+        if (properties != null) {
+            this.properties.putAll(properties);
+        }
     }
 
     @Override
@@ -150,9 +172,9 @@ public class DefaultExtensionRepositoryDescriptor implements ExtensionRepository
         if (obj instanceof ExtensionRepositoryDescriptor) {
             ExtensionRepositoryDescriptor repository = (ExtensionRepositoryDescriptor) obj;
 
-            return Objects.equal(getId(), repository.getId()) && Objects.equal(getType(), repository.getType())
-                && Objects.equal(getURI(), repository.getURI())
-                && Objects.equal(getProperties(), repository.getProperties());
+            return Objects.equals(getId(), repository.getId()) && Objects.equals(getType(), repository.getType())
+                && Objects.equals(getURI(), repository.getURI())
+                && Objects.equals(getProperties(), repository.getProperties());
         }
 
         return false;

@@ -19,31 +19,47 @@
  */
 package org.xwiki.xml.internal.html;
 
+import java.io.ByteArrayInputStream;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.xwiki.component.manager.ComponentLookupException;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.htmlcleaner.CleanerProperties;
+import org.htmlcleaner.DomSerializer;
+import org.htmlcleaner.HtmlCleaner;
+import org.htmlcleaner.SimpleXmlSerializer;
+import org.htmlcleaner.TagNode;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xwiki.component.manager.ComponentManager;
 import org.xwiki.test.annotation.ComponentList;
-import org.xwiki.test.mockito.MockitoComponentMockingRule;
-import org.xwiki.xml.html.HTMLCleaner;
+import org.xwiki.test.junit5.mockito.ComponentTest;
+import org.xwiki.test.junit5.mockito.InjectMockComponents;
 import org.xwiki.xml.html.HTMLCleanerConfiguration;
 import org.xwiki.xml.html.HTMLUtils;
 import org.xwiki.xml.html.filter.HTMLFilter;
 import org.xwiki.xml.internal.html.filter.AttributeFilter;
 import org.xwiki.xml.internal.html.filter.BodyFilter;
+import org.xwiki.xml.internal.html.filter.ControlCharactersFilter;
 import org.xwiki.xml.internal.html.filter.FontFilter;
 import org.xwiki.xml.internal.html.filter.LinkFilter;
 import org.xwiki.xml.internal.html.filter.ListFilter;
 import org.xwiki.xml.internal.html.filter.ListItemFilter;
 import org.xwiki.xml.internal.html.filter.UniqueIdFilter;
+
+import com.sun.org.apache.xml.internal.serialize.OutputFormat;
+import com.sun.org.apache.xml.internal.serialize.XMLSerializer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Unit tests for {@link org.xwiki.xml.internal.html.DefaultHTMLCleaner}.
@@ -51,8 +67,18 @@ import org.xwiki.xml.internal.html.filter.UniqueIdFilter;
  * @version $Id$
  * @since 1.6M1
  */
-@ComponentList({ ListFilter.class, ListItemFilter.class, FontFilter.class, BodyFilter.class, AttributeFilter.class,
-UniqueIdFilter.class, DefaultHTMLCleaner.class, LinkFilter.class })
+@ComponentTest
+@ComponentList({
+    ListFilter.class,
+    ListItemFilter.class,
+    FontFilter.class,
+    BodyFilter.class,
+    AttributeFilter.class,
+    UniqueIdFilter.class,
+    DefaultHTMLCleaner.class,
+    LinkFilter.class,
+    ControlCharactersFilter.class
+})
 public class DefaultHTMLCleanerTest
 {
     public static final String HEADER = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -63,12 +89,11 @@ public class DefaultHTMLCleanerTest
 
     private static final String FOOTER = "</body></html>\n";
 
-    @Rule
-    public final MockitoComponentMockingRule<HTMLCleaner> mocker = new MockitoComponentMockingRule<HTMLCleaner>(
-        DefaultHTMLCleaner.class);
+    @InjectMockComponents
+    private DefaultHTMLCleaner cleaner;
 
     @Test
-    public void elementExpansion() throws ComponentLookupException
+    public void elementExpansion()
     {
         assertHTML("<p><textarea></textarea></p>", "<textarea/>");
 
@@ -78,17 +103,13 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void specialCharacters() throws ComponentLookupException
+    public void specialCharacters()
     {
-        // TODO: We still have a problem I think in that if there are characters such as "&" or quote in the source
-        // text they are not escaped. This is because we have use "false" in DefaultHTMLCleaner here:
-        // Document document = new JDomSerializer(this.cleanerProperties, false).createJDom(cleanedNode);
-        // See the problem described here: http://sourceforge.net/forum/forum.php?thread_id=2243880&forum_id=637246
         assertHTML("<p>&quot;&amp;**notbold**&lt;notag&gt;&nbsp;</p>",
             "<p>&quot;&amp;**notbold**&lt;notag&gt;&nbsp;</p>");
         assertHTML("<p>\"&amp;</p>", "<p>\"&</p>");
         assertHTML("<p><img src=\"http://host.com/a.gif?a=foo&amp;b=bar\" /></p>",
-            "<img src=\"http://host.com/a.gif?a=foo&b=bar\" />");
+            "<img src=\"http://host.com/a.gif?a=foo&amp;b=bar\" />");
         assertHTML("<p>&#xA;</p>", "<p>&#xA;</p>");
 
         // Verify that double quotes are escaped in attribute values
@@ -96,13 +117,13 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void closeUnbalancedTags() throws ComponentLookupException
+    public void closeUnbalancedTags()
     {
         assertHTML("<hr /><p>hello</p>", "<hr><p>hello");
     }
 
     @Test
-    public void conversionsFromHTML() throws ComponentLookupException
+    public void conversionsFromHTML()
     {
         assertHTML("<p>this <strong>is</strong> bold</p>", "this <b>is</b> bold");
         assertHTML("<p><em>italic</em></p>", "<i>italic</i>");
@@ -119,7 +140,7 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void convertImageAlignment() throws ComponentLookupException
+    public void convertImageAlignment()
     {
         assertHTML("<p><img style=\"float:left\" /></p>", "<img align=\"left\"/>");
         assertHTML("<p><img style=\"float:right\" /></p>", "<img align=\"right\"/>");
@@ -129,7 +150,7 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void convertImplicitParagraphs() throws ComponentLookupException
+    public void convertImplicitParagraphs()
     {
         assertHTML("<p>word1</p><p>word2</p><p>word3</p><hr /><p>word4</p>", "word1<p>word2</p>word3<hr />word4");
 
@@ -149,7 +170,7 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void cleanNonXHTMLLists() throws ComponentLookupException
+    public void cleanNonXHTMLLists()
     {
         // Fixing invalid list item.
         assertHTML("<ul><li>item</li></ul>", "<li>item</li>");
@@ -179,28 +200,28 @@ public class DefaultHTMLCleanerTest
      * Verify that scripts are not cleaned and that we can have a CDATA section inside. Also verify CDATA behaviors.
      */
     @Test
-    public void scriptAndCData() throws ComponentLookupException
+    public void scriptAndCData()
     {
-        assertHTML("<script type=\"text/javascript\">//<![CDATA[\n\nalert(\"Hello World\")\n\n//]]></script>",
+        assertHTML("<script type=\"text/javascript\">/*<![CDATA[*/\nalert(\"Hello World\")\n/*]]>*/</script>",
             "<script type=\"text/javascript\"><![CDATA[\nalert(\"Hello World\")\n]]></script>");
 
-        assertHTML("<script type=\"text/javascript\">//<![CDATA[\n//\nalert(\"Hello World\")\n\n//]]></script>",
+        assertHTML("<script type=\"text/javascript\">/*<![CDATA[*/\nalert(\"Hello World\")\n/*]]>*/</script>",
             "<script type=\"text/javascript\">//<![CDATA[\nalert(\"Hello World\")\n//]]></script>");
 
-        assertHTML("<script type=\"text/javascript\">//<![CDATA[\n\nalert(\"Hello World\")\n\n//]]></script>",
+        assertHTML("<script type=\"text/javascript\">/*<![CDATA[*/\nalert(\"Hello World\")\n/*]]>*/</script>",
             "<script type=\"text/javascript\">/*<![CDATA[*/\nalert(\"Hello World\")\n/*]]>*/</script>");
 
-        assertHTML("<script type=\"text/javascript\">//<![CDATA[\n\n\n" + "function escapeForXML(origtext) {\n"
+        assertHTML("<script type=\"text/javascript\">/*<![CDATA[*/\n\n" + "function escapeForXML(origtext) {\n"
             + "   return origtext.replace(/\\&/g,'&'+'amp;').replace(/</g,'&'+'lt;')\n"
-            + "       .replace(/>/g,'&'+'gt;').replace(/\'/g,'&'+'apos;').replace(/\"/g,'&'+'quot;');" + "}\n\n\n//]]>"
+            + "       .replace(/>/g,'&'+'gt;').replace(/\'/g,'&'+'apos;').replace(/\"/g,'&'+'quot;');" + "}\n\n/*]]>*/"
             + "</script>", "<script type=\"text/javascript\">\n" + "/*<![CDATA[*/\n"
             + "function escapeForXML(origtext) {\n"
             + "   return origtext.replace(/\\&/g,'&'+'amp;').replace(/</g,'&'+'lt;')\n"
             + "       .replace(/>/g,'&'+'gt;').replace(/\'/g,'&'+'apos;').replace(/\"/g,'&'+'quot;');" + "}\n"
             + "/*]]>*/\n" + "</script>");
 
-        assertHTML("<script>//<![CDATA[\n<>\n//]]></script>", "<script>&lt;&gt;</script>");
-        assertHTML("<script>//<![CDATA[\n<>\n//]]></script>", "<script><></script>");
+        assertHTML("<script>/*<![CDATA[*/\n&lt;&gt;\n/*]]>*/</script>", "<script>&lt;&gt;</script>");
+        assertHTML("<script>/*<![CDATA[*/\n<>\n/*]]>*/</script>", "<script><></script>");
 
         // Verify that CDATA not inside SCRIPT or STYLE elements are considered comments in HTML and thus stripped
         // when cleaned.
@@ -212,7 +233,7 @@ public class DefaultHTMLCleanerTest
      * Verify that inline style elements are not cleaned and that we can have a CDATA section inside.
      */
     @Test
-    public void styleAndCData() throws ComponentLookupException
+    public void styleAndCData()
     {
         assertHTMLWithHeadContent("<style type=\"text/css\">/*<![CDATA[*/\na { color: red; }\n/*]]>*/</style>",
             "<style type=\"text/css\"><![CDATA[\na { color: red; }\n]]></style>");
@@ -220,57 +241,62 @@ public class DefaultHTMLCleanerTest
         assertHTMLWithHeadContent("<style type=\"text/css\">/*<![CDATA[*/\na { color: red; }\n/*]]>*/</style>",
             "<style type=\"text/css\">/*<![CDATA[*/\na { color: red; }\n/*]]>*/</style>");
 
-        assertHTMLWithHeadContent("<style type=\"text/css\">/*<![CDATA[*/a>span { color: blue;}\n/*]]>*/</style>",
+        assertHTMLWithHeadContent("<style type=\"text/css\">/*<![CDATA[*/\na&gt;span { color: blue;}\n/*]]>*/</style>",
             "<style type=\"text/css\">a&gt;span { color: blue;}</style>");
 
-        assertHTMLWithHeadContent("<style>/*<![CDATA[*/<>\n/*]]>*/</style>", "<style>&lt;&gt;</style>");
-        assertHTMLWithHeadContent("<style>/*<![CDATA[*/<>\n/*]]>*/</style>", "<style><></style>");
+        assertHTMLWithHeadContent("<style>/*<![CDATA[*/\n&lt;&gt;\n/*]]>*/</style>", "<style>&lt;&gt;</style>");
+        assertHTMLWithHeadContent("<style>/*<![CDATA[*/\n<>\n/*]]>*/</style>", "<style><></style>");
     }
 
     /**
      * Verify that we can control what filters are used for cleaning.
      */
     @Test
-    public void explicitFilterList() throws ComponentLookupException
+    public void explicitFilterList()
     {
-        HTMLCleanerConfiguration configuration = this.mocker.getComponentUnderTest().getDefaultConfiguration();
-        configuration.setFilters(Collections.<HTMLFilter>emptyList());
-        String result =
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader("something"), configuration));
+        HTMLCleanerConfiguration configuration = this.cleaner.getDefaultConfiguration();
+        configuration.setFilters(Collections.emptyList());
+        String result = HTMLUtils.toString(this.cleaner.clean(new StringReader("something"), configuration));
         // Note that if the default Body filter had been executed the result would have been:
         // <p>something</p>.
-        Assert.assertEquals(HEADER_FULL + "something" + FOOTER, result);
+        assertEquals(HEADER_FULL + "something" + FOOTER, result);
     }
 
     /**
      * Verify that the restricted parameter works.
      */
     @Test
-    public void restrictedHtml() throws ComponentLookupException
+    public void restrictedHtml()
     {
-        HTMLCleanerConfiguration configuration = this.mocker.getComponentUnderTest().getDefaultConfiguration();
-        Map<String, String> parameters = new HashMap<String, String>();
+        HTMLCleanerConfiguration configuration = this.cleaner.getDefaultConfiguration();
+        Map<String, String> parameters = new HashMap<>();
         parameters.putAll(configuration.getParameters());
         parameters.put("restricted", "true");
         configuration.setParameters(parameters);
+        Document document = this.cleaner.clean(new StringReader("<script>alert(\"foo\")</script>"), configuration);
 
-        String result =
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(
-                new StringReader("<script>alert(\"foo\")</script>"), configuration));
-        Assert.assertEquals(HEADER_FULL + "<pre>alert(\"foo\")</pre>" + FOOTER, result);
+        String textContent =
+            document.getElementsByTagName("pre").item(0).getTextContent();
+        assertEquals("alert(\"foo\")", textContent);
 
-        result =
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(
-                new StringReader("<style>p {color:white;}</style>"), configuration));
-        Assert.assertEquals(HEADER_FULL + "<pre>p {color:white;}</pre>" + FOOTER, result);
+        String result = HTMLUtils.toString(document);
+        assertEquals(HEADER_FULL + "<pre>alert(\"foo\")</pre>" + FOOTER, result);
 
+        document = this.cleaner.clean(new StringReader("<style>p {color:white;}</style>"), configuration);
+
+        textContent =
+            document.getElementsByTagName("pre").item(0).getTextContent();
+        assertEquals("p {color:white;}", textContent);
+
+        result = HTMLUtils.toString(document);
+        assertEquals(HEADER_FULL + "<pre>p {color:white;}</pre>" + FOOTER, result);
     }
 
     /**
      * Verify that passing a fully-formed XHTML header works fine.
      */
     @Test
-    public void fullXHTMLHeader() throws ComponentLookupException
+    public void fullXHTMLHeader()
     {
         assertHTML("<p>test</p>", HEADER_FULL + "<p>test</p>" + FOOTER);
     }
@@ -279,16 +305,16 @@ public class DefaultHTMLCleanerTest
      * Test {@link UniqueIdFilter}.
      */
     @Test
-    public void duplicateIds() throws Exception
+    public void duplicateIds(ComponentManager componentManager) throws Exception
     {
         String actual = "<p id=\"x\">1</p><p id=\"xy\">2</p><p id=\"x\">3</p>";
         String expected = "<p id=\"x\">1</p><p id=\"xy\">2</p><p id=\"x0\">3</p>";
-        HTMLCleanerConfiguration config = this.mocker.getComponentUnderTest().getDefaultConfiguration();
-        List<HTMLFilter> filters = new ArrayList<HTMLFilter>(config.getFilters());
-        filters.add(this.mocker.<HTMLFilter>getInstance(HTMLFilter.class, "uniqueId"));
+        HTMLCleanerConfiguration config = this.cleaner.getDefaultConfiguration();
+        List<HTMLFilter> filters = new ArrayList<>(config.getFilters());
+        filters.add(componentManager.getInstance(HTMLFilter.class, "uniqueId"));
         config.setFilters(filters);
-        Assert.assertEquals(HEADER_FULL + expected + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(actual), config)));
+        assertEquals(HEADER_FULL + expected + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(actual), config)));
     }
 
     /**
@@ -311,8 +337,8 @@ public class DefaultHTMLCleanerTest
      * <a href="https://jira.xwiki.org/browse/XWIKI-9753">XWIKI-9753</a>).
      */
     @Test
-    @Ignore("See https://jira.xwiki.org/browse/XWIKI-9753")
-    public void cleanTitleWithNamespace() throws Exception
+    @Disabled("See https://jira.xwiki.org/browse/XWIKI-9753")
+    public void cleanTitleWithNamespace()
     {
         // Test with TITLE in HEAD
         String input =
@@ -327,8 +353,8 @@ public class DefaultHTMLCleanerTest
                 + "        <title>SVG Title Demo example</title>\n"
                 + "        <rect height=\"50\" style=\"fill:none; stroke:blue; stroke-width:1px\" width=\"200\" x=\"10\" "
                 + "y=\"10\"></rect>\n" + "      </g>\n" + "    </svg>\n" + "    <p>after</p>\n";
-        Assert.assertEquals(HEADER + input + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(input))));
+        assertEquals(HEADER + input + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(input))));
     }
 
     /**
@@ -336,20 +362,19 @@ public class DefaultHTMLCleanerTest
      * {@link HTMLCleanerConfiguration#NAMESPACES_AWARE} is set to false.
      */
     @Test
-    @Ignore("See https://sourceforge.net/p/htmlcleaner/bugs/168/")
-    public void cleanHTMLTagWithNamespace() throws Exception
+    public void cleanHTMLTagWithNamespace()
     {
         String input = "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>";
 
         // Default
-        Assert.assertEquals(HEADER + input + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(input))));
+        assertEquals(HEADER + input + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(input))));
 
         // Configured for namespace awareness being false
-        HTMLCleanerConfiguration config = this.mocker.getComponentUnderTest().getDefaultConfiguration();
+        HTMLCleanerConfiguration config = this.cleaner.getDefaultConfiguration();
         config.setParameters(Collections.singletonMap(HTMLCleanerConfiguration.NAMESPACES_AWARE, "false"));
-        Assert.assertEquals(HEADER + "<html><head></head><body>" + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(input), config)));
+        assertEquals(HEADER + "<html><head></head><body>" + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(input), config)));
     }
 
     /**
@@ -357,27 +382,27 @@ public class DefaultHTMLCleanerTest
      * href="https://jira.xwiki.org/browse/XWIKI-4007">XWIKI-4007</a>).
      */
     @Test
-    public void cleanEmptyDIV() throws Exception
+    public void cleanEmptyDIV()
     {
         String input = "<div id=\"y\"></div><div id=\"z\">something</div>";
         assertHTML(input, HEADER_FULL + input + FOOTER);
     }
 
     @Test
-    public void verifyLegendTagNotStripped() throws Exception
+    public void verifyLegendTagNotStripped()
     {
         String input = "<fieldset><legend>test</legend><div>content</div></fieldset>";
         assertHTML(input, HEADER_FULL + input + FOOTER);
     }
 
     @Test
-    public void verifySpanIsExpanded() throws Exception
+    public void verifySpanIsExpanded()
     {
         assertHTML("<p><span class=\"fa fa-icon\"></span></p>", "<span class=\"fa fa-icon\" />");
     }
 
     @Test
-    public void verifyExternalLinksAreSecure() throws Exception
+    public void verifyExternalLinksAreSecure()
     {
         assertHTML("<p><a href=\"relativeLink\" target=\"_blank\">label</a></p>",
                 "<a href=\"relativeLink\" target=\"_blank\">label</a>");
@@ -400,9 +425,36 @@ public class DefaultHTMLCleanerTest
     }
 
     @Test
-    public void verifyEntitiesAreNotBroken() throws Exception
+    public void verifyEntitiesAreNotBroken()
     {
         assertHTML("<p>&Eacute;</p>", "&Eacute;");
+        assertHTML("<p>&frac14;</p>", "&frac14;");
+        assertHTML("<p>&amp;f!rac14;</p>", "&f!rac14;");
+        assertHTML("<p>&frac12;</p>", "&frac12;");
+    }
+
+    @Test
+    public void entitiesWithTranslation()
+    {
+        assertHTML("<p>1&gt;2&amp;3&nbsp;4&frac12;5öüäăâîș</p>", "<p>1&gt;2&amp;3&nbsp;4&frac12;5öüäăâîș</p>");
+        HTMLCleanerConfiguration htmlCleanerConfiguration = new DefaultHTMLCleanerConfiguration();
+        htmlCleanerConfiguration
+            .setParameters(Collections.singletonMap(HTMLCleanerConfiguration.TRANSLATE_SPECIAL_ENTITIES, "true"));
+        assertHTML("<p>1&gt;2&amp;3&#160;4&#189;5öüäăâîș</p>",
+            "<p>1&gt;2&amp;3&nbsp;4&frac12;5öüäăâîș</p>", htmlCleanerConfiguration);
+    }
+
+    @Test
+    public void verifyLeadingSpacesAreKeptOnlyInInputValue()
+    {
+        assertHTML("<p><input type=\"hidden\" value=\"  fff\" /></p>", "<input type=\"hidden\" value=\"  fff\" />");
+        assertHTML("<p><input type=\"hidden\" value=\"foo\" /></p>", "<input type=\"hidden\" value=\"foo\" />");
+        assertHTML("<p><input type=\"hidden\" value=\"foo bar\" /></p>", "<input type=\"hidden\" value=\"foo bar\" />");
+        assertHTML("<p><input class=\"fff\" type=\"hidden\" /></p>", "<input type=\"hidden\" class=\"  fff\" />");
+        assertHTML("<p><input class=\"foo bar\" type=\"hidden\" value=\" foo bar  \" /></p>",
+            "<input type=\"hidden   \" value=\" foo bar  \" class=\" foo bar  \"/>");
+        assertHTML("<div class=\"foo bar\" title=\"foo bar\"></div>",
+            "<div title=\" foo bar  \" class=\" foo bar  \"/>");
     }
 
     /**
@@ -427,15 +479,84 @@ public class DefaultHTMLCleanerTest
             "\r\n<iframe src=\"whatever\"/>\r\n<iframe src=\"whatever\"/>\r\n");
     }
 
-    private void assertHTML(String expected, String actual) throws ComponentLookupException
+    @Test
+    public void escapeHTMLCharsInAttributes() throws Exception
     {
-        Assert.assertEquals(HEADER_FULL + expected + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(actual))));
+        // Note: single quotes are not escaped since they're valid chars in attribute values that are surrounded by
+        // quotes. And HTMLCleaner will convert single quoted attributes into double-quoted ones.
+        String htmlInput = "<div foo=\"aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee&apos;fff\">content</div>";
+        Document document = this.cleaner.clean(new StringReader(htmlInput));
+
+        String textContent =
+            document.getElementsByTagName("div").item(0).getAttributes().getNamedItem("foo").getTextContent();
+        assertEquals("aaa\"bbb&ccc>ddd<eee'fff", textContent);
+
+        htmlInput = "<div foo='aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee&apos;fff'>content</div>";
+        document = this.cleaner.clean(new StringReader(htmlInput));
+
+        textContent =
+            document.getElementsByTagName("div").item(0).getAttributes().getNamedItem("foo").getTextContent();
+        assertEquals("aaa\"bbb&ccc>ddd<eee'fff", textContent);
+
+        assertHTML("<div foo=\"aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee'fff\">content</div>",
+            "<div foo=\"aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee&apos;fff\">content</div>");
+        assertHTML("<div foo=\"aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee'fff\">content</div>",
+            "<div foo='aaa&quot;bbb&amp;ccc&gt;ddd&lt;eee&apos;fff'>content</div>");
     }
 
-    private void assertHTMLWithHeadContent(String expected, String actual) throws ComponentLookupException
+    @Test
+    public void controlCharacters() throws Exception
     {
-        Assert.assertEquals(HEADER + "<html><head>" + expected + "</head><body>" + FOOTER,
-            HTMLUtils.toString(this.mocker.getComponentUnderTest().clean(new StringReader(actual))));
+        String htmlInput = "<p>\u0008</p>";
+        Document document = this.cleaner.clean(new StringReader(htmlInput));
+
+        String textContent =
+            document.getElementsByTagName("p").item(0).getTextContent();
+        assertEquals(" ", textContent);
+        assertHTML(" ", "\u0008");
+
+        htmlInput = "<p>&#8;</p>";
+        document = this.cleaner.clean(new StringReader(htmlInput));
+
+        textContent =
+            document.getElementsByTagName("p").item(0).getTextContent();
+        assertEquals("&#8;", textContent);
+        assertHTML("<p>&#8;</p>", "&#8;");
+    }
+
+    private void assertHTML(String expected, String actual)
+    {
+        assertEquals(HEADER_FULL + expected + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(actual))));
+    }
+
+    private void assertHTML(String expected, String actual, HTMLCleanerConfiguration configuration)
+    {
+        assertEquals(HEADER_FULL + expected + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(actual), configuration)));
+    }
+
+    private void assertHTMLWithHeadContent(String expected, String actual)
+    {
+        assertEquals(HEADER + "<html><head>" + expected + "</head><body>" + FOOTER,
+            HTMLUtils.toString(this.cleaner.clean(new StringReader(actual))));
+    }
+
+    @Test
+    public void transformedDOMContent()
+    {
+        String htmlInput = "<img src=\"http://host.com/a.gif?a=foo&b=bar\" />";
+        Document document = this.cleaner.clean(new StringReader(htmlInput));
+
+        String textContent =
+            document.getElementsByTagName("img").item(0).getAttributes().getNamedItem("src").getTextContent();
+        assertEquals("http://host.com/a.gif?a=foo&b=bar", textContent);
+
+        htmlInput = "<img src=\"http://host.com/a.gif?a=foo&amp;b=bar\" />";
+        document = this.cleaner.clean(new StringReader(htmlInput));
+
+        textContent =
+            document.getElementsByTagName("img").item(0).getAttributes().getNamedItem("src").getTextContent();
+        assertEquals("http://host.com/a.gif?a=foo&b=bar", textContent);
     }
 }

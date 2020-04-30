@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-core</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-legacy</artifactId>
   <name>XWiki Commons - Legacy</name>
@@ -39,6 +39,7 @@
     <module>xwiki-commons-legacy-component</module>
     <module>xwiki-commons-legacy-configuration</module>
     <module>xwiki-commons-legacy-properties</module>
+    <module>xwiki-commons-legacy-velocity</module>
   </modules>
   <dependencies>
     <!-- Needed for backward compatibility Aspects -->

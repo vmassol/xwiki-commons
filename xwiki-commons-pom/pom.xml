@@ -25,14 +25,17 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-pom</artifactId>
   <name>XWiki Commons - Root POM</name>
   <packaging>pom</packaging>
   <properties>
     <!-- By default legacy dependencies are forbidden -->
-    <xwiki.enforcer.no-legacy-dependencies.skip>false</xwiki.enforcer.no-legacy-dependencies.skip>
+    <xwiki.enforcer.no-legacy-dependencies.skip>${xwiki.enforcer.skip}</xwiki.enforcer.no-legacy-dependencies.skip>
+    <!-- By default we perform checks on the POM content -->
+    <xwiki.enforcer.valid-poms.skip>${xwiki.enforcer.skip}</xwiki.enforcer.valid-poms.skip>
+    <!-- By default don't skip Spoon checks -->
     <xwiki.spoon.skip>false</xwiki.spoon.skip>
   </properties>
   <build>
@@ -67,13 +70,14 @@
       </plugin>
       <!-- We want to force packaging the license resources in the produced XWiki artifacts -->
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-remote-resources-plugin</artifactId>
+        <groupId>org.xwiki.commons</groupId>
+        <artifactId>xwiki-commons-tool-remote-resource-plugin</artifactId>
+        <version>12.4-SNAPSHOT</version>
         <dependencies>
           <dependency>
             <groupId>org.xwiki.commons</groupId>
             <artifactId>xwiki-commons-tool-license-resources</artifactId>
-            <version>9.11-SNAPSHOT</version>
+            <version>12.4-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <executions>
@@ -83,8 +87,10 @@
               <goal>process</goal>
             </goals>
             <configuration>
+              <projectsData>LICENSES</projectsData>
               <resourceBundles>
-                <resourceBundle>org.xwiki.commons:xwiki-commons-tool-license-resources:${commons.version}</resourceBundle>
+                <resourceBundle>org.xwiki.commons:xwiki-commons-tool-license-resources:${commons.version}
+                </resourceBundle>
               </resourceBundles>
             </configuration>
           </execution>
@@ -97,7 +103,7 @@
           <dependency>
             <groupId>org.xwiki.commons</groupId>
             <artifactId>xwiki-commons-tool-enforcer-dependencies</artifactId>
-            <version>9.11-SNAPSHOT</version>
+            <version>12.4-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <executions>
@@ -125,6 +131,7 @@
               <goal>enforce</goal>
             </goals>
             <configuration>
+              <skip>${xwiki.enforcer.valid-poms.skip}</skip>
               <rules>
                 <externalExtensionCheck implementation="org.xwiki.tool.enforcer.ExternalExtensionCheck" />
               </rules>
@@ -140,7 +147,7 @@
           <dependency>
             <groupId>org.xwiki.commons</groupId>
             <artifactId>xwiki-commons-tool-verification-resources</artifactId>
-            <version>9.11-SNAPSHOT</version>
+            <version>12.4-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <configuration>
@@ -157,30 +164,83 @@
         <artifactId>spoon-maven-plugin</artifactId>
         <executions>
           <execution>
-            <phase>generate-sources</phase>
+            <id>spoon-main</id>
             <goals>
-              <goal>generate</goal>
+              <goal>check</goal>
             </goals>
+            <configuration>
+              <processors>
+                <processor>org.xwiki.tool.spoon.ForbiddenInvocationProcessor</processor>
+                <processor>org.xwiki.tool.spoon.ComponentAnnotationProcessor</processor>
+              </processors>
+              <processorProperties>
+                <processorProperty>
+                  <name>org.xwiki.tool.spoon.ForbiddenInvocationProcessor</name>
+                  <properties>
+                    <property>
+                      <name>methods</name>
+                      <!--
+                        - File#deleteOnExit: Does not make any sense in the context of an application server and it can
+                          cause memory leaks
+                        - URL#equals: The URL#equals implementation is insane (it actually tries to access the host
+                          with HTTP URLs for example)
+                      -->
+                      <value><![CDATA[
+                        {
+                          "java.io.File": ["deleteOnExit"],
+                          "java.net.URL": ["equals"]
+                        }
+                      ]]></value>
+                    </property>
+                  </properties>
+                </processorProperty>
+                <processorProperty>
+                  <name>org.xwiki.tool.spoon.ComponentAnnotationProcessor</name>
+                  <properties>
+                    <!-- TODO: Remove when Spoon is fixed and doesn't emit the following warning when this property is
+                         not specified:
+                           warning: No value found for property 'componentsTxtPath' in processor ...
+                         See https://github.com/INRIA/spoon/issues/3339
+                    -->
+                    <property>
+                      <name>componentsTxtPath</name>
+                      <value>target/classes/META-INF/components.txt</value>
+                    </property>
+                    <property>
+                      <name>skipForeignDeclarations</name>
+                      <value>false</value>
+                    </property>
+                  </properties>
+                </processorProperty>
+              </processorProperties>
+            </configuration>
           </execution>
+          <!-- TODO: Disabled FTM since spoon doesn't seem able to execute a process or test source roots ATM, see
+               https://github.com/INRIA/spoon/issues/3326
+          <execution>
+            <id>spoon-test</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <srcFolder>src/test/java</srcFolder>
+              <processors>
+                <processor>org.xwiki.tool.spoon.JUnit5JUnit4Processor</processor>
+              </processors>
+            </configuration>
+          </execution-->
         </executions>
         <configuration>
           <skip>${xwiki.spoon.skip}</skip>
-
-          <processors>
-            <processor>org.xwiki.tool.spoon.ForbiddenInvocationProcessor</processor>
-          </processors>
-
-          <!-- We don't use Spoon to modify -->
-          <compileOriginalSources>true</compileOriginalSources>
-          <noCopyResources>true</noCopyResources>
-          <noClasspath>true</noClasspath>
+          <!-- Don't fail in case of missing sources -->
+          <skipSpoonErrors>true</skipSpoonErrors>
         </configuration>
         <dependencies>
           <!-- Contains custom Spoon processors -->
           <dependency>
             <groupId>org.xwiki.commons</groupId>
-            <artifactId>xwiki-commons-tool-spoon</artifactId>
-            <version>9.11-SNAPSHOT</version>
+            <artifactId>xwiki-commons-tool-spoon-checks</artifactId>
+            <version>12.4-SNAPSHOT</version>
           </dependency>
         </dependencies>
       </plugin>
@@ -196,7 +256,7 @@
             <dependency>
               <groupId>org.xwiki.commons</groupId>
               <artifactId>xwiki-commons-tool-verification-resources</artifactId>
-              <version>9.11-SNAPSHOT</version>
+              <version>12.4-SNAPSHOT</version>
             </dependency>
           </dependencies>
           <configuration>
@@ -236,16 +296,18 @@
             <header>license.txt</header>
             <strictCheck>true</strictCheck>
             <headerDefinitions>
-              <!-- Our style for XML headers isn't standard so we need to define it in a custom manner.
+              <!-- Our styles for headers aren't standard so we need to define them in a custom manner.
                    See xwiki-commons-tool-verification-resources module -->
               <headerDefinition>license-xml-definition.xml</headerDefinition>
               <headerDefinition>license-script-definition.xml</headerDefinition>
               <headerDefinition>license-batch-definition.xml</headerDefinition>
+              <headerDefinition>license-vm-definition.xml</headerDefinition>
             </headerDefinitions>
-            <!-- Our Java and XML styles aren't the default so we need to change the mapping -->
+            <!-- Our Java, XML and VM styles aren't the default so we need to change the mapping -->
             <mapping>
               <java>SLASHSTAR_STYLE</java>
               <aj>SLASHSTAR_STYLE</aj>
+              <vm>SHARPSHARP_STYLE</vm>
             </mapping>
             <!-- We're only interested in checking our sources and our POMs -->
             <includes>
@@ -255,6 +317,8 @@
               <include>src/**/*.bat</include>
               <include>src/**/*.sh</include>
               <include>src/**/ApplicationResources.properties</include>
+              <include>src/**/*.vm</include>
+              <include>src/**/*.js</include>
             </includes>
             <excludes>
               <!-- At the moment we don't have a comment syntax for components.txt files so we need to exclude them
@@ -264,6 +328,10 @@
               <!-- Since there's no comment syntax for Maven IT tests's goal.txt file we need to exclude it -->
               <exclude>**/it/**/goals.txt</exclude>
               <exclude>**/goal.txt</exclude>
+              <!-- Don't check DSpot-generated tests for license headers. DSpot does keep license headers but it
+                   modifies their styles, thus leading this plugin to think there's no license header.
+                   See https://github.com/STAMP-project/dspot/issues/538 -->
+              <exclude>src/test/dspot/**/*.*</exclude>
             </excludes>
           </configuration>
           <!-- Add a dependency since this is where the license-maven-plugin plugin will find the license.txt file -->
@@ -271,7 +339,7 @@
             <dependency>
               <groupId>org.xwiki.commons</groupId>
               <artifactId>xwiki-commons-tool-verification-resources</artifactId>
-              <version>9.11-SNAPSHOT</version>
+              <version>12.4-SNAPSHOT</version>
             </dependency>
           </dependencies>
           <executions>
@@ -285,18 +353,10 @@
         <plugin>
           <groupId>org.xwiki.commons</groupId>
           <artifactId>xwiki-commons-tool-xar-plugin</artifactId>
-          <version>9.11-SNAPSHOT</version>
+          <version>12.4-SNAPSHOT</version>
           <configuration>
             <!-- Add missing license headers by default -->
             <formatLicense>true</formatLicense>
-            <!-- Consider all pages named *Translations as content pages (since they have translations) but also
-                 as Technical pages since they need to be hidden. -->
-            <contentPages>
-              <contentPage>.*Translations\.xml</contentPage>
-            </contentPages>
-            <technicalPages>
-              <technicalPage>.*Translations\.xml</technicalPage>
-            </technicalPages>
             <titles>
               <!-- Verify that all WebPreferences pages have the same title for consistency -->
               <property>
@@ -304,7 +364,33 @@
                 <value>\$services\.localization\.render\('admin.preferences.title'\)</value>
               </property>
             </titles>
+            <!-- Check for empty parents since, even though this is deprecated, we still want to set it FTM -->
+            <emptyParentSkip>false</emptyParentSkip>
           </configuration>
+        </plugin>
+        <!-- Add archiving support for various XWiki specific formats in the dependency plugin -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <dependencies>
+            <dependency>
+              <groupId>org.xwiki.commons</groupId>
+              <artifactId>xwiki-commons-tool-archiver</artifactId>
+              <version>12.4-SNAPSHOT</version>
+            </dependency>
+          </dependencies>
+        </plugin>
+        <!-- Add archiving support for various XWiki specific formats in the assembly plugin -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <dependencies>
+            <dependency>
+              <groupId>org.xwiki.commons</groupId>
+              <artifactId>xwiki-commons-tool-archiver</artifactId>
+              <version>12.4-SNAPSHOT</version>
+            </dependency>
+          </dependencies>
         </plugin>
       </plugins>
     </pluginManagement>

@@ -24,7 +24,7 @@
   <parent>
     <artifactId>xwiki-commons-crypto</artifactId>
     <groupId>org.xwiki.commons</groupId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-crypto-pkix</artifactId>
   <packaging>jar</packaging>
@@ -35,7 +35,8 @@
     <!-- Name to display by the Extension Manager -->
     <xwiki.extension.name>Cryptographic Services for Authentication</xwiki.extension.name>
     <!-- Working with cryptography requires a lot of classes, relax the coupling requirements -->
-    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml</checkstyle.suppressions.location>
+    <checkstyle.suppressions.location>${basedir}/src/main/checkstyle/checkstyle-suppressions.xml
+    </checkstyle.suppressions.location>
   </properties>
   <dependencies>
     <dependency>
@@ -54,7 +55,16 @@
     </dependency>
     <dependency>
       <groupId>com.sun.mail</groupId>
-      <artifactId>javax.mail</artifactId>
+      <artifactId>jakarta.mail</artifactId>
     </dependency>
   </dependencies>
+  <build>
+    <plugins>
+      <!-- Add test source root for executing generated tests -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
 </project>

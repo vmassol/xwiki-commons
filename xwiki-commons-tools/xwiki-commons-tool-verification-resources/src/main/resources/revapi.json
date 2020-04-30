@@ -9,11 +9,13 @@
           // excludes all the time. So we currently trust them that the breakages are not real breakages
           // that will affect us. We should probably improve this in the future.
           "include": [
-            "org\\.xwiki\\..*"
+            "org\\.xwiki\\..*",
+            "com\\.xpn\\.xwiki\\..*"
           ],
           "exclude": [
             "org\\.xwiki\\..*\\.internal(\\..*)?",
-            "org\\.xwiki\\..*\\.test(\\..*)?"
+            "org\\.xwiki\\..*\\.test(\\..*)?",
+            "com\\.xpn\\.xwiki\\.internal(\\..*)?"
           ]
         }
       }
@@ -45,6 +47,13 @@
         "regex": true,
         "code": "java\\.class\\.externalClassExposedInAPI",
         "package": "org\\.xwiki\\..*",
+        "justification": "Dragging of other XWiki types to the API is OK."
+      },
+      // Same rule for the old com.xpn.xwiki package.
+      {
+        "regex": true,
+        "code": "java\\.class\\.externalClassExposedInAPI",
+        "package": "com\\.xpn\\.xwiki\\..*",
         "justification": "Dragging of other XWiki types to the API is OK."
       }
     ]

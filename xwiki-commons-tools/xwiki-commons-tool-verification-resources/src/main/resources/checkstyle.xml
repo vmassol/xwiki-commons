@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!DOCTYPE module PUBLIC
-    "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
-    "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+  "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+  "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!-- Checkstyle properties for XWiki projects. Note that checks that should always executed and never be excluded
      should be moved to checkstyle-blocker.xml -->
@@ -57,6 +57,13 @@
   <module name="Translation"/>
    -->
 
+  <module name="LineLength">
+    <!-- @(\w+\.)+\w+::\w+\( stands for JSNI method calls: @my.package.MyClass::myMethod() -->
+    <property name="ignorePattern" value="(@version|@see|@link|^import|@(\w+\.)+\w+::\w+\()"/>
+    <property name="max" value="120"/>
+    <property name="fileExtensions" value="java"/>
+  </module>
+
   <!--
      ======================================================================================
        Checks that require a TreeWalker (sorted alphabetically)
@@ -94,14 +101,24 @@
     -->
 
     <module name="ClassFanOutComplexity">
+      <!--
+          1) Default excludes (taken from https://github.com/checkstyle/checkstyle/blob/master/src/main/java/com/puppycrawl/tools/checkstyle/checks/metrics/AbstractClassCouplingCheck.java)
+          2) Non XWiki excludes
+          3) XWiki excludes
+      -->
       <property name="excludedClasses" value="boolean, byte, char, double, float, int, long, short, void,
         Boolean, Byte, Character, Double, Float, Integer, Long, Short, Void,
         Object, Class, String, StringBuffer, StringBuilder,
         ArrayIndexOutOfBoundsException, Exception, RuntimeException, IllegalArgumentException, IllegalStateException, IndexOutOfBoundsException, NullPointerException, Throwable, SecurityException, UnsupportedOperationException,
-        List, ArrayList, Deque, Queue, LinkedList, Set, HashSet, SortedSet, TreeSet, Map, HashMap, SortedMap, TreeMap, Collections, Collection, Arrays,
-        ConcurrentHashMap, ConcurrentLinkedDeque, ConcurrentLinkedQueue, DelayQueue, FutureTask, LinkedBlockinDeque, LinkedBlockinQueue, Phaser, PriorityBlockingQueue, RejectedExecutionException, SynchronousQueue,
-        Logger, LoggerFactory, StringUtils, IOUtils,
-        Inject, Named, Component, Role, Singleton, Unstable, Override, Deprecated, SafeVarargs, SuppressWarnings"/>
+        List, ArrayList, Deque, Queue, LinkedList, Set, HashSet, SortedSet, TreeSet, Map, HashMap, SortedMap, TreeMap,
+        Override, Deprecated, SafeVarargs, SuppressWarnings, FunctionalInterface,
+
+        IOException, Collections, Collection, Arrays, ConcurrentHashMap, ConcurrentLinkedDeque, ConcurrentLinkedQueue, DelayQueue, FutureTask, LinkedBlockinDeque, LinkedBlockinQueue, Phaser,
+        PriorityBlockingQueue, RejectedExecutionException, SynchronousQueue, Logger, LoggerFactory, StringUtils, FieldUtils, IOUtils, StringWriter, StringReader, ExceptionUtils,
+        Inject, Provider, Named, Singleton, NavigableSet, Type,
+
+        ComponentInstantiationStrategy, Unstable"/>
+      <property name="excludedPackages" value="org.apache.maven.plugins.annotations, javax.annotation.concurrent, org.xwiki.component.annotation"/>
     </module>
 
     <module name="ClassTypeParameterName"/>
@@ -173,7 +190,12 @@
 
     <!--module name="IllegalTokenText"/-->
 
-    <module name="IllegalType"/>
+    <module name="IllegalType">
+      <!-- Disable CLASS_DEF introduced in Checkstyle 8.15 -->
+      <!-- TODO: discuss if we want to enable it or not -->
+      <property name="tokens"
+        value="ANNOTATION_FIELD_DEF, INTERFACE_DEF, METHOD_CALL, METHOD_DEF, METHOD_REF, PARAMETER_DEF, VARIABLE_DEF"/>
+    </module>
 
     <!--module name="ImportControl"/-->
 
@@ -187,8 +209,10 @@
 
     <module name="JavadocMethod">
       <property name="scope" value="public"/>
-      <property name="allowUndeclaredRTE" value="true"/>
     </module>
+
+    <module name="MissingJavadocMethod"/>
+    <module name="MissingJavadocType"/>
 
     <module name="JavadocStyle"/>
 
@@ -205,13 +229,8 @@
 
     <module name="LeftCurly">
       <property name="option" value="nl"/>
-      <property name="tokens" value="CLASS_DEF,INTERFACE_DEF"/>
-    </module>
-
-    <module name="LineLength">
-      <!-- @(\w+\.)+\w+::\w+\( stands for JSNI method calls: @my.package.MyClass::myMethod() -->
-      <property name="ignorePattern" value="(@version|@see|@link|^import|@(\w+\.)+\w+::\w+\()"/>
-      <property name="max" value="120"/>
+      <property name="tokens"
+        value="ANNOTATION_DEF,CLASS_DEF,CTOR_DEF,ENUM_DEF,INTERFACE_DEF,METHOD_DEF"/>
     </module>
 
     <module name="LocalFinalVariableName"/>

@@ -71,12 +71,12 @@ public class ExtensionXWikiOrgExtensionRepositorySource extends AbstractExtensio
         Collection<ExtensionRepositoryDescriptor> configuredRepositories =
             this.configuration.getExtensionRepositoryDescriptors();
 
-        Collection<ExtensionRepositoryDescriptor> repositories = new ArrayList<ExtensionRepositoryDescriptor>();
+        Collection<ExtensionRepositoryDescriptor> repositories = new ArrayList<>();
 
         if (configuredRepositories == null) {
             try {
                 repositories.add(new DefaultExtensionRepositoryDescriptor("extensions.xwiki.org", "xwiki",
-                    new URI("http://extensions.xwiki.org/xwiki/rest/")));
+                    new URI("https://extensions.xwiki.org/xwiki/rest/")));
             } catch (URISyntaxException e) {
                 // Should never happen
             }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
 
 import javax.inject.Inject;
@@ -58,7 +59,7 @@ import org.xwiki.observation.ObservationManager;
  * @version $Id$
  * @since 4.0M1
  */
-@Component(hints = { JarExtensionHandler.JAR, JarExtensionHandler.WEBJAR })
+@Component(hints = {JarExtensionHandler.JAR, JarExtensionHandler.WEBJAR})
 @Singleton
 public class JarExtensionHandler extends AbstractExtensionHandler implements Initializable
 {
@@ -119,7 +120,7 @@ public class JarExtensionHandler extends AbstractExtensionHandler implements Ini
         // But it's not the case for:
 
         // ** webjar.org releases (i.e. most of the webjars). We assume "org.webjars:*" id means it's a webjar
-        if (extension.getId().getId().startsWith("org.webjars:")) {
+        if (StringUtils.startsWithAny(extension.getId().getId(), "org.webjars:", "org.webjars.")) {
             return true;
         }
         // ** contrib extensions which support version of XWiki older than 9.0RC1. We support a custom property which
@@ -146,6 +147,23 @@ public class JarExtensionHandler extends AbstractExtensionHandler implements Ini
     private static URL getExtensionURL(LocalExtension localExtension) throws MalformedURLException
     {
         return new File(localExtension.getFile().getAbsolutePath()).toURI().toURL();
+    }
+
+    @Override
+    public void upgrade(Collection<InstalledExtension> previousInstalledExtensions, LocalExtension newLocalExtension,
+        String namespace, Request request) throws InstallException
+    {
+        // Uninstall previous version(s)
+        for (InstalledExtension previousExtension : previousInstalledExtensions) {
+            try {
+                uninstall(previousExtension, namespace, request);
+            } catch (UninstallException e) {
+                throw new InstallException("Failed to uninstall previous extension [" + previousExtension + "]", e);
+            }
+        }
+
+        // Most of the time loading the class of the new version won't work until the classloader is recreated
+        // which will be done by JarExtensionJobFinishingListener
     }
 
     @Override
@@ -214,16 +232,22 @@ public class JarExtensionHandler extends AbstractExtensionHandler implements Ini
             ComponentEventManager componentEventManager = componentManager.getComponentEventManager();
 
             // Make sure to send events only when the extension is fully ready
-            StackingComponentEventManager stackingComponentEventManager = null;
-            try {
-                if (componentEventManager instanceof StackingComponentEventManager) {
-                    stackingComponentEventManager = (StackingComponentEventManager) componentEventManager;
+            StackingComponentEventManager stackingComponentEventManager;
+            if (componentEventManager instanceof StackingComponentEventManager) {
+                stackingComponentEventManager = (StackingComponentEventManager) componentEventManager;
+                if (stackingComponentEventManager.isStacked()) {
+                    // If already stacked don't do anything (and more importantly don't disabled stacking)
+                    stackingComponentEventManager = null;
                 } else {
-                    stackingComponentEventManager = new StackingComponentEventManager();
-                    componentManager.setComponentEventManager(stackingComponentEventManager);
+                    stackingComponentEventManager.shouldStack(true);
                 }
-                stackingComponentEventManager.shouldStack(true);
+            } else {
+                stackingComponentEventManager = new StackingComponentEventManager();
+                componentManager.setComponentEventManager(stackingComponentEventManager);
+            }
 
+            // Initialize the JAR
+            try {
                 this.jarLoader.initialize(componentManager, classLoader, componentDeclarations);
             } finally {
                 if (stackingComponentEventManager != null) {

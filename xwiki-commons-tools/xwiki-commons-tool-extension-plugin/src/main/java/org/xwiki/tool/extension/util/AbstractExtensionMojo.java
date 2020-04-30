@@ -20,7 +20,6 @@
 package org.xwiki.tool.extension.util;
 
 import java.io.File;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -29,8 +28,6 @@ import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.handler.ArtifactHandler;
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager;
 import org.apache.maven.artifact.repository.ArtifactRepository;
-import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
-import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -38,9 +35,10 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
-import org.apache.maven.repository.RepositorySystem;
 import org.codehaus.plexus.PlexusContainer;
 import org.xwiki.extension.Extension;
+import org.xwiki.stability.Unstable;
+import org.xwiki.tool.extension.ComponentRepresentation;
 import org.xwiki.tool.extension.ExtensionOverride;
 import org.xwiki.tool.extension.internal.ExtensionMojoCoreExtensionRepository;
 
@@ -54,12 +52,6 @@ public abstract class AbstractExtensionMojo extends AbstractMojo
 {
     @Component
     protected PlexusContainer container;
-
-    @Component
-    private RepositorySystem repositorySystem;
-
-    @Component
-    private ArtifactHandlerManager artifactHandlers;
 
     /**
      * The current Maven session being executed.
@@ -85,6 +77,34 @@ public abstract class AbstractExtensionMojo extends AbstractMojo
     @Parameter
     protected boolean skip;
 
+    @Parameter(defaultValue = "${project}", required = true, readonly = true)
+    protected MavenProject project;
+
+    /**
+     * The permanent directory.
+     *
+     * @since 9.5RC1
+     */
+    @Parameter(defaultValue = "${project.build.directory}/data/")
+    protected File permanentDirectory;
+
+    @Parameter(defaultValue = "${xwiki.extension.recommendedVersions}")
+    protected String recommendedVersions;
+
+    /**
+     * The list of components to unregister.
+     *
+     * @since 12.2
+     */
+    @Unstable
+    @Parameter
+    protected List<ComponentRepresentation> disabledComponents;
+
+    protected ExtensionMojoHelper extensionHelper;
+
+    @Component
+    private ArtifactHandlerManager artifactHandlers;
+
     /**
      * The extensions (and their dependencies) to resolve as core extensions.
      * 
@@ -98,22 +118,6 @@ public abstract class AbstractExtensionMojo extends AbstractMojo
      */
     @Parameter(property = "project.remoteArtifactRepositories")
     private List<ArtifactRepository> remoteRepositories;
-
-    @Parameter(defaultValue = "${project}", required = true, readonly = true)
-    protected MavenProject project;
-
-    /**
-     * The permanent directory.
-     * 
-     * @since 9.5RC1
-     */
-    @Parameter(defaultValue = "${project.build.directory}/data/")
-    protected File permanentDirectory;
-
-    @Parameter(defaultValue = "${xwiki.extension.recommendedVersions}")
-    protected String recommendedVersions;
-
-    protected ExtensionMojoHelper extensionHelper;
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException
@@ -170,36 +174,10 @@ public abstract class AbstractExtensionMojo extends AbstractMojo
 
         this.extensionHelper = ExtensionMojoHelper.create(this.project, this.permanentDirectory);
         this.extensionHelper.initalize(this.session, this.localRepository, this.container);
-
         this.extensionHelper.setExtensionOverrides(this.extensionOverrides);
+        this.extensionHelper.disableComponents(this.disabledComponents);
 
         getLog().info("Done initializing extension tools");
-    }
-
-    private Set<Artifact> resolveMavenArtifacts(List<ExtensionArtifact> input) throws MojoExecutionException
-    {
-        if (input != null) {
-            Set<Artifact> artifacts = new LinkedHashSet<>(input.size());
-            for (ExtensionArtifact extensionArtifact : input) {
-                artifacts.add(this.repositorySystem.createArtifact(extensionArtifact.getGroupId(),
-                    extensionArtifact.getArtifactId(), extensionArtifact.getVersion(), null,
-                    extensionArtifact.getType()));
-            }
-
-            ArtifactResolutionRequest request = new ArtifactResolutionRequest().setArtifact(this.project.getArtifact())
-                .setRemoteRepositories(this.remoteRepositories).setArtifactDependencies(artifacts)
-                .setLocalRepository(this.localRepository).setManagedVersionMap(this.project.getManagedVersionMap())
-                .setResolveRoot(false);
-            ArtifactResolutionResult resolutionResult = this.repositorySystem.resolve(request);
-            if (resolutionResult.hasExceptions()) {
-                throw new MojoExecutionException(
-                    String.format("Failed to resolve artifacts [%s]", input, resolutionResult.getExceptions().get(0)));
-            }
-
-            return resolutionResult.getArtifacts();
-        }
-
-        return null;
     }
 
     private void registerCoreExtensions() throws MojoExecutionException
@@ -207,7 +185,7 @@ public abstract class AbstractExtensionMojo extends AbstractMojo
         if (this.coreExtensions != null) {
             getLog().info("Registering core extensions...");
 
-            Set<Artifact> coreArtifacts = resolveMavenArtifacts(this.coreExtensions);
+            Set<Artifact> coreArtifacts = this.extensionHelper.collectMavenArtifacts(this.coreExtensions);
 
             if (coreArtifacts != null) {
                 // Set excluded extensions as core extensions so that they don't end up in any install plan

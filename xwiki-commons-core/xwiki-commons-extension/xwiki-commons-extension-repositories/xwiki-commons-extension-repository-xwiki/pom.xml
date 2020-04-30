@@ -25,7 +25,7 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-extension-repositories</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-extension-repository-xwiki</artifactId>
   <name>XWiki Commons - Extension - Repository - XWiki</name>
@@ -33,8 +33,11 @@
   <description>Allows accessing extensions located in an XWiki repository</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.18</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>20</xwiki.pitest.mutationThreshold>
     <!-- Old names of this module used for retro compatibility when resolving dependencies of old extensions -->
-    <xwiki.extension.features>org.xwiki.platform:xwiki-platform-extension-repository-xwiki-handler,org.xwiki.commons:xwiki-commons-extension-repository-xwiki-handler</xwiki.extension.features>
+    <xwiki.extension.features>
+      org.xwiki.platform:xwiki-platform-extension-repository-xwiki-handler,org.xwiki.commons:xwiki-commons-extension-repository-xwiki-handler
+    </xwiki.extension.features>
     <!-- Name to display by the Extension Manager -->
     <xwiki.extension.name>Extension Repository Connector - XWiki</xwiki.extension.name>
   </properties>
@@ -49,7 +52,6 @@
       <artifactId>xwiki-commons-repository-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-
     <!-- Test dependencies -->
     <dependency>
       <groupId>com.github.tomakehurst</groupId>
@@ -61,6 +63,10 @@
         <exclusion>
           <artifactId>log4j</artifactId>
           <groupId>log4j</groupId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.json</groupId>
+          <artifactId>json</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

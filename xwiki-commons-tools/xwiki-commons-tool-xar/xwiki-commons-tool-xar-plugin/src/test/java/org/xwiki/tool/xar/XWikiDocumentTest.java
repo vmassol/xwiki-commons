@@ -20,10 +20,10 @@
 package org.xwiki.tool.xar;
 
 import org.dom4j.DocumentException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.xwiki.tool.xar.internal.XWikiDocument;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Validate {@link XWikiDocument}.
@@ -36,14 +36,6 @@ public class XWikiDocumentTest
     {
         XWikiDocument xdocument = new XWikiDocument();
         xdocument.fromXML("<xwikidoc><web>" + space + "</web><name>" + name + "</name></xwikidoc>");
-
-        assertEquals(reference, xdocument.getReference());
-    }
-
-    private void assertReference(String reference, String xml) throws DocumentException
-    {
-        XWikiDocument xdocument = new XWikiDocument();
-        xdocument.fromXML(xml);
 
         assertEquals(reference, xdocument.getReference());
     }

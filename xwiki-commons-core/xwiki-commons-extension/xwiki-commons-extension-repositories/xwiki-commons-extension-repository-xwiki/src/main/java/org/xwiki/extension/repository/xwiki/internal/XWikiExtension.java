@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.xwiki.extension.AbstractRatingExtension;
 import org.xwiki.extension.DefaultExtensionScm;
 import org.xwiki.extension.DefaultExtensionScmConnection;
@@ -173,7 +174,9 @@ public class XWikiExtension extends AbstractRatingExtension
 
         // File
 
-        setFile(new XWikiExtensionFile(repository, getId()));
+        if (StringUtils.isNotEmpty(getType())) {
+            setFile(new XWikiExtensionFile(repository, getId()));
+        }
 
         // XWiki Repository often act as a proxy and the source extension might have more information that the XWiki
         // Repository version supports
@@ -209,7 +212,7 @@ public class XWikiExtension extends AbstractRatingExtension
         ExtensionFactory factory) throws URISyntaxException
     {
         return factory.getExtensionRepositoryDescriptor(restRepository.getId(), restRepository.getType(),
-            new URI(restRepository.getUri()));
+            new URI(restRepository.getUri()), null);
     }
 
     @Override

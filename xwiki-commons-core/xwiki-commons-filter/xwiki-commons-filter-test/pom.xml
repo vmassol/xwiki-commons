@@ -25,13 +25,14 @@
   <parent>
     <groupId>org.xwiki.commons</groupId>
     <artifactId>xwiki-commons-filter</artifactId>
-    <version>9.11-SNAPSHOT</version>
+    <version>12.4-SNAPSHOT</version>
   </parent>
   <artifactId>xwiki-commons-filter-test</artifactId>
   <name>XWiki Commons - Filter - Test framework</name>
   <description>Filter test framework</description>
   <properties>
     <xwiki.jacoco.instructionRatio>0.00</xwiki.jacoco.instructionRatio>
+    <xwiki.pitest.mutationThreshold>7</xwiki.pitest.mutationThreshold>
   </properties>
   <dependencies>
     <dependency>

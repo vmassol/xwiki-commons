@@ -185,8 +185,7 @@ public class DefaultCoreExtensionScanner implements CoreExtensionScanner, Dispos
         // It's possible in a (bad JAR) to declare the entry META-INF/MANIFEST.MF without the entry META-INF/
         urls.addAll(ClasspathHelper.forResource("META-INF/MANIFEST.MF"));
         // Workaround javax.inject 1 JAR which is incredibly hacky and does not even contain any META-INF folder so we
-        // have to do
-        // something special for it
+        // have to do something special for it
         urls.addAll(ClasspathHelper.forPackage("javax"));
 
         Collection<URL> jarURLs = new ArrayList<>(urls.size());
@@ -207,14 +206,14 @@ public class DefaultCoreExtensionScanner implements CoreExtensionScanner, Dispos
         addCoreExtension(extensions, coreExtension, this.logger);
     }
 
-    static public void addCoreExtension(Map<String, DefaultCoreExtension> extensions,
+    public static void addCoreExtension(Map<String, DefaultCoreExtension> extensions,
         DefaultCoreExtension coreExtension, Logger logger)
     {
         DefaultCoreExtension existingCoreExtension = extensions.get(coreExtension.getId().getId());
 
         if (existingCoreExtension == null) {
             extensions.put(coreExtension.getId().getId(), coreExtension);
-        } else {
+        } else if (existingCoreExtension.isGuessed() == coreExtension.isGuessed()) {
             Version existingVersion = existingCoreExtension.getId().getVersion();
             Version version = coreExtension.getId().getVersion();
 
@@ -236,6 +235,8 @@ public class DefaultCoreExtensionScanner implements CoreExtensionScanner, Dispos
                 }
                 logger.warn("[{} ({})] is selected", selectedExtension.getId(), selectedExtension.getDescriptorURL());
             }
+        } else if (existingCoreExtension.isGuessed()) {
+            extensions.put(coreExtension.getId().getId(), coreExtension);
         }
     }
 
@@ -300,7 +301,7 @@ public class DefaultCoreExtensionScanner implements CoreExtensionScanner, Dispos
 
         Collection<URL> jars = getJARs();
 
-        this.logger.debug("Found the following JARs: ", jars);
+        this.logger.debug("Found the following JARs: {}", jars);
 
         ////////////////////
         // Try to find associated xed files
