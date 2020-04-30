@@ -28,4 +28,8 @@ test:
     - vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
     - export DISPLAY=:1
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS test -Plegacy,integration-tests,docker,snapshot
-
+  artifacts:
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+        - target/failsafe-reports/TEST-*.xml
