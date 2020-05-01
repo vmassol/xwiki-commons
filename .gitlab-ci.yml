@@ -20,6 +20,10 @@ build:
   stage: build
   script:
     - echo $SHELL
+    - id
+    - pwd
+    - echo $M2_HOME
+    - whatever
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
 test:
