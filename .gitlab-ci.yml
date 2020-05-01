@@ -23,7 +23,7 @@ build:
     - pwd
     - echo $M2_HOME
     - echo $PATH
-    - mvn --version
+#    - mvn --version
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
 test:
