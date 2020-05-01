@@ -6,6 +6,8 @@ variables:
   # when running from the command line.
   # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
   MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true"
+  M2_HOME: "/home/hudsonagent/maven"
+  PATH: "${M2_HOME}/bin:${PATH}"
 
 image: xwiki/build:latest
 
@@ -19,10 +21,10 @@ cache:
 build:
   stage: build
   script:
-    - echo $SHELL
-    - id
     - pwd
     - echo $M2_HOME
+    - echo $PATH
+    - mvn --version
     - whatever
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
