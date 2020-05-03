@@ -10,29 +10,34 @@ variables:
 image: xwiki/build:latest
 
 # Cache downloaded dependencies and build results across jobs
-# Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
-# puts the m2 repo in /root/.m2/repository we need to symlink it below.
-# Current directory set by gitlab is /build/<github org name>/<github repo name>
 cache:
   paths:
     - .m2/
     - target/
 
+# Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
+# puts the m2 repo in /root/.m2/repository we need to symlink it below.
+# Current directory set by gitlab is /build/<github org name>/<github repo name>
 before_script:
     - ln -fs /root/.m2 `pwd`/.m2 
 
 build:
   stage: build
   script:
+    # Apparently gitlab runner doesn't run our bashrc, I think it's because it
+    # overrides the root user's home directory to be /builds, so we need to force
+    # execute it to have the mvn executable in the PATH.
     - . /root/.bashrc
-    - pwd
-    - echo $M2_HOME
-    - echo $PATH
-    - mvn --version
+#    - pwd
+#    - echo $M2_HOME
+#    - echo $PATH
+#    - mvn --version
 #    - ls /root/.m2/repository
-    - ls .m2
-    - whatever
-    - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
+#    - ls .m2
+    # We run the clean goal because we cache target/ so that the test job won't have
+    # to rebuild everything and thus will be faster. However this seems to carry over
+    # across pipeline executions. 
+    - mvn $MAVEN_CLI_OPTS clean install -DskipTests -Plegacy,snapshot
 
 test:
   stage: test
