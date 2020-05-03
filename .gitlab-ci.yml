@@ -1,3 +1,4 @@
+# Common variable for all jobs
 variables:
   # This will suppress any download for dependencies and plugins or upload messages which would clutter the console log.
   # `showDateTime` will show the passed time in milliseconds. You need to specify `--batch-mode` to make this work.
@@ -6,6 +7,7 @@ variables:
   # when running from the command line.
   # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
   MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true -Dmaven.test.failure.ignore"
+  JAVA_OPTS: "-Xmx1024m -Xms256m"
 
 image: xwiki/build:latest
 
@@ -16,49 +18,69 @@ cache:
   paths:
     - .m2/
 
-# Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
-# puts the m2 repo in /root/.m2/repository we need to symlink it below.
-# Current directory set by gitlab is /build/<github org name>/<github repo name>
-# Variable name is $CI_PROJECT_DIR
 before_script:
-    - ln -fs /root/.m2 $CI_PROJECT_DIR/.m2 
+  # Apparently gitlab runner doesn't run our bashrc, I think it's because it
+  # overrides the root user's home directory to be /builds, so we need to force
+  # execute it to have the mvn executable in the PATH.
+  - . /root/.bashrc
+  # Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
+  # puts the m2 repo in /root/.m2/repository we need to symlink it below.
+  # Current directory set by gitlab is /build/<github org name>/<github repo name>
+  # Variable name is $CI_PROJECT_DIR
+  - ln -fs /root/.m2 $CI_PROJECT_DIR/.m2 
 
-build:
+main:
   stage: build
+  variables:
+    - PROFILES: "-Plegacy,integration-tests"
+    - PROPERTIES: "-Dxwiki.checkstyle.skip=true -Dxwiki.surefire.captureconsole.skip=true -Dxwiki.revapi.skip=true"
   script:
-    - ls $CI_PROJECT_DIR/.m2
-    # Apparently gitlab runner doesn't run our bashrc, I think it's because it
-    # overrides the root user's home directory to be /builds, so we need to force
-    # execute it to have the mvn executable in the PATH.
-    - . /root/.bashrc
     # Remove the xwiki dependencies from the cache repo so that we build them or 
     # download them and have reproducible builds
     - rm -Rf $CI_PROJECT_DIR/.m2/repository/org/xwiki
     - rm -Rf $CI_PROJECT_DIR/.m2/repository/com/xpn
-    # We run the clean goal because we cache target/ so that the test job won't have
+    # We run the clean goal because we cache target/ so that the subsequent jobs won't have
     # to rebuild everything and thus will be faster. However this seems to carry over
     # across pipeline executions. 
-    - mvn $MAVEN_CLI_OPTS clean install -DskipTests -Plegacy,snapshot
+    - mvn $MAVEN_CLI_OPTS clean install $PROFILES $PROPERTIES
   artifacts:
-    # When not specifyin expire_in the default is used whih is 30 days or forever, see
+    # When not specifying expire_in, the default is used whih is 30 days or forever, see
     # https://docs.gitlab.com/ee/ci/yaml/#artifactsexpire_in
     # Note: see https://blog.deniger.net/post/gitlab-maven-optimize-build/ for the syntax used.
     paths: 
       - "*/target" 
-
-test:
-  stage: test
-  script:
-    - . /root/.bashrc
-    # Setup a display for functional tests requiring one (non-docker tests)
-    - vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
-    - export DISPLAY=:1
-    # Make sure we don't recompile sources, see:
-    # https://blog.deniger.net/post/gitlab-maven-optimize-build/
-    - find . -name "*.class" -exec touch {} \+
-    - mvn $MAVEN_CLI_OPTS test -Plegacy,integration-tests,docker,snapshot
-  artifacts:
     reports:
       junit:
         - target/surefire-reports/TEST-*.xml
         - target/failsafe-reports/TEST-*.xml
+
+checkstyle: 
+  stage: test
+  needs:
+    - job: main 
+      artifacts: true
+  variables:
+    - PROFILES: "-Plegacy"
+  script:
+    # Make sure we don't recompile sources, see:
+    # https://blog.deniger.net/post/gitlab-maven-optimize-build/
+    - find . -name "*.class" -exec touch {} \+
+    - mvn $MAVEN_CLI_OPTS test-compile checkstyle:check@default $PROFILES
+
+testrelease:
+  stage: test
+  needs: []
+  variables:
+    - PROFILES: "-Plegacy,integration-tests"
+    - PROPERTIES: "-DskipTests -DperformRelease=true -Dgpg.skip=true -Dxwiki.checkstyle.skip=true -Ddoclint=all"
+  script:
+    - mvn $MAVEN_CLI_OPTS clean install $PROFILES $PROPERTIES 
+
+quality:
+  stage: test
+  needs: []
+  variables:
+    - PROFILES: "-Pquality,legacy,coverage"
+    - PROPERTIES: "-Dxwiki.jacoco.itDestFile=$CI_PROJECT_DIR/target/jacoco-it.exec"
+  script:
+    - mvn $MAVEN_CLI_OPTS clean install jacoco:report sonar:sonar $PROFILES $PROPERTIES
