@@ -9,12 +9,17 @@ variables:
 
 image: xwiki/build:latest
 
-# Cache downloaded dependencies and plugins between builds.
-# To keep cache across branches add 'key: "$CI_JOB_NAME"'
+# Cache downloaded dependencies and build results across jobs
+# Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
+# puts the m2 repo in /root/.m2/repository we need to symlink it below.
+# Current directory set by gitlab is /build/<github org name>/<github repo name>
 cache:
   paths:
-    - /root/.m2/repository
+    - .m2/
     - target/
+
+before_script:
+    - ln -fs /root/.m2 `pwd`/.m2 
 
 build:
   stage: build
@@ -25,7 +30,7 @@ build:
     - echo $PATH
     - mvn --version
 #    - ls /root/.m2/repository
-    - ls /root/.m2
+    - ls .m2
     - whatever
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
