@@ -19,11 +19,13 @@ cache:
 build:
   stage: build
   script:
-#    - . /root/.bashrc
+    - . /root/.bashrc
     - pwd
     - echo $M2_HOME
     - echo $PATH
-#    - mvn --version
+    - mvn --version
+    - ls /root/.m2/repository
+    - whatever
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
 
 test:
