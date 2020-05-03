@@ -24,7 +24,7 @@ build:
     - echo $M2_HOME
     - echo $PATH
     - mvn --version
-    - ls /root/.m2/repository
+#    - ls /root/.m2/repository
     - ls /root/.m2
     - whatever
     - /home/hudsonagent/maven/bin/mvn $MAVEN_CLI_OPTS install -DskipTests -Plegacy,snapshot
