@@ -10,10 +10,11 @@ variables:
 image: xwiki/build:latest
 
 # Cache downloaded dependencies and build results across jobs
+# Note: We don't cache the target directory, see 
+# https://blog.deniger.net/post/gitlab-maven-optimize-build/
 cache:
   paths:
     - .m2/
-    - target/
 
 # Note that Gitlab only caches /build and /cache ATM and since the XWiki build image
 # puts the m2 repo in /root/.m2/repository we need to symlink it below.
@@ -25,26 +26,36 @@ before_script:
 build:
   stage: build
   script:
+    - ls $CI_PROJECT_DIR/.m2
     # Apparently gitlab runner doesn't run our bashrc, I think it's because it
     # overrides the root user's home directory to be /builds, so we need to force
     # execute it to have the mvn executable in the PATH.
     - . /root/.bashrc
-#    - pwd
-#    - echo $M2_HOME
-#    - echo $PATH
-#    - mvn --version
-#    - ls /root/.m2/repository
-#    - ls .m2
+    # Remove the xwiki dependencies from the cache repo so that we build them or 
+    # download them and have reproducible builds
+    - rm -Rf $CI_PROJECT_DIR/.m2/repository/org/xwiki
+    - rm -Rf $CI_PROJECT_DIR/.m2/repository/com/xpn
     # We run the clean goal because we cache target/ so that the test job won't have
     # to rebuild everything and thus will be faster. However this seems to carry over
     # across pipeline executions. 
     - mvn $MAVEN_CLI_OPTS clean install -DskipTests -Plegacy,snapshot
+  artifacts:
+    # When not specifyin expire_in the default is used whih is 30 days or forever, see
+    # https://docs.gitlab.com/ee/ci/yaml/#artifactsexpire_in
+    # Note: see https://blog.deniger.net/post/gitlab-maven-optimize-build/ for the syntax used.
+    paths: 
+      - "*/target" 
 
 test:
   stage: test
   script:
+    - . /root/.bashrc
+    # Setup a display for functional tests requiring one (non-docker tests)
     - vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
     - export DISPLAY=:1
+    # Make sure we don't recompile sources, see:
+    # https://blog.deniger.net/post/gitlab-maven-optimize-build/
+    - find . -name "*.class" -exec touch {} \+
     - mvn $MAVEN_CLI_OPTS test -Plegacy,integration-tests,docker,snapshot
   artifacts:
     reports:
