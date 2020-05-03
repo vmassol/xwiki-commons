@@ -32,8 +32,8 @@ before_script:
 main:
   stage: build
   variables:
-    - PROFILES: "-Plegacy,integration-tests"
-    - PROPERTIES: "-Dxwiki.checkstyle.skip=true -Dxwiki.surefire.captureconsole.skip=true -Dxwiki.revapi.skip=true"
+    PROFILES: "-Plegacy,integration-tests"
+    PROPERTIES: "-Dxwiki.checkstyle.skip=true -Dxwiki.surefire.captureconsole.skip=true -Dxwiki.revapi.skip=true"
   script:
     # Remove the xwiki dependencies from the cache repo so that we build them or 
     # download them and have reproducible builds
@@ -60,7 +60,7 @@ checkstyle:
     - job: main 
       artifacts: true
   variables:
-    - PROFILES: "-Plegacy"
+    PROFILES: "-Plegacy"
   script:
     # Make sure we don't recompile sources, see:
     # https://blog.deniger.net/post/gitlab-maven-optimize-build/
@@ -71,8 +71,8 @@ testrelease:
   stage: test
   needs: []
   variables:
-    - PROFILES: "-Plegacy,integration-tests"
-    - PROPERTIES: "-DskipTests -DperformRelease=true -Dgpg.skip=true -Dxwiki.checkstyle.skip=true -Ddoclint=all"
+    PROFILES: "-Plegacy,integration-tests"
+    PROPERTIES: "-DskipTests -DperformRelease=true -Dgpg.skip=true -Dxwiki.checkstyle.skip=true -Ddoclint=all"
   script:
     - mvn $MAVEN_CLI_OPTS clean install $PROFILES $PROPERTIES 
 
@@ -80,7 +80,7 @@ quality:
   stage: test
   needs: []
   variables:
-    - PROFILES: "-Pquality,legacy,coverage"
-    - PROPERTIES: "-Dxwiki.jacoco.itDestFile=$CI_PROJECT_DIR/target/jacoco-it.exec"
+    PROFILES: "-Pquality,legacy,coverage"
+    PROPERTIES: "-Dxwiki.jacoco.itDestFile=$CI_PROJECT_DIR/target/jacoco-it.exec"
   script:
     - mvn $MAVEN_CLI_OPTS clean install jacoco:report sonar:sonar $PROFILES $PROPERTIES
