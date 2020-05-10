@@ -6,12 +6,13 @@ jobs:
     environment:
       MAVEN_OPTS: -Xmx2048m -Xms512m -Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=/root/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true
       MAVEN_CLI_OPTS: --batch-mode --errors --fail-at-end --show-version --no-transfer-progress -DinstallAtEnd=true -DdeployAtEnd=true -Dmaven.test.failure.ignore
+      BASH_ENV: ~/.bashrc
     steps:
       - run: vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
       - run: export DISPLAY=:1
       # Find how to replace this with the execution of our  /root/.bashrc
-      - run: export M2_HOME=/home/hudsonagent/maven
-      - run: export PATH=${M2_HOME}/bin:${PATH}
-      - run: echo $PATH
+      #- run: export M2_HOME=/home/hudsonagent/maven
+      #- run: export PATH=${M2_HOME}/bin:${PATH}
+      #- run: echo $PATH
       - checkout
       - run: mvn $MAVEN_CLI_OPTS install -Plegacy,integration-tests,docker,snapshot
