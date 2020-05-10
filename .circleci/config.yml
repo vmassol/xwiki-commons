@@ -10,9 +10,15 @@ jobs:
     steps:
       - run: vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
       - run: export DISPLAY=:1
-      # Find how to replace this with the execution of our  /root/.bashrc
-      #- run: export M2_HOME=/home/hudsonagent/maven
-      #- run: export PATH=${M2_HOME}/bin:${PATH}
-      #- run: echo $PATH
       - checkout
       - run: mvn $MAVEN_CLI_OPTS install -Plegacy,integration-tests,docker,snapshot
+      - run:
+          name: Save test results
+          command: |
+            mkdir -p ~/test-results/junit/
+            find . -type f -regex ".*/target/surefire-reports/.*xml" -exec cp {} ~/test-results/junit/ \;
+          when: always
+      - store_test_results:
+          path: ~/test-results
+      - store_artifacts:
+          path: ~/test-results/junit
