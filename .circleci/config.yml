@@ -9,9 +9,9 @@ jobs:
     steps:
       - run: vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
       - run: export DISPLAY=:1
-      - run: pwd
-      - run: echo $PATH
-      - run: . /root/.bashrc
+      # Find how to replace this with the execution of our  /root/.bashrc
+      - run: export M2_HOME=/home/hudsonagent/maven
+      - run: export PATH=${M2_HOME}/bin:${PATH}
       - run: echo $PATH
       - checkout
       - run: mvn $MAVEN_CLI_OPTS install -Plegacy,integration-tests,docker,snapshot
