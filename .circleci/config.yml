@@ -10,5 +10,9 @@ jobs:
     steps:
       - run: vncserver :1 -geometry 1280x960 -localhost -nolisten tcp
       - run: export DISPLAY=:1
+      - run: pwd
+      - run: echo $PATH
+      - run: . /root/.bashrc
+      - run: echo $PATH
       - checkout
       - run: mvn $MAVEN_CLI_OPTS install -Plegacy,integration-tests,docker,snapshot
